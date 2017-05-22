@@ -34,18 +34,15 @@ namespace Hangfire.PostgreSql
 
         public PostgreSqlJobQueueMonitoringApi(IDbConnection connection, PostgreSqlStorageOptions options)
         {
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (options == null) throw new ArgumentNullException(nameof(options));
-
-            _connection = connection;
-            _options = options;
+            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+            _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
         public IEnumerable<string> GetQueues()
         {
-            string sqlQuery = @"
+            string sqlQuery = $@"
 SELECT DISTINCT ""queue"" 
-FROM """ + _options.SchemaName + @""".""jobqueue"";
+FROM ""{_options.SchemaName}"".""jobqueue"";
 ";
             return _connection.Query(sqlQuery).Select(x => (string)x.queue).ToList();
         }
@@ -57,12 +54,12 @@ FROM """ + _options.SchemaName + @""".""jobqueue"";
 
         private IEnumerable<int> GetQueuedOrFetchedJobIds(string queue, bool fetched, int @from, int perPage)
         {
-            string sqlQuery = string.Format(@"
+            string sqlQuery = string.Format($@"
 SELECT j.""id"" 
-FROM """ + _options.SchemaName + @""".""jobqueue"" jq
-LEFT JOIN """ + _options.SchemaName + @""".""job"" j ON jq.""jobid"" = j.""id""
+FROM ""{_options.SchemaName}"".""jobqueue"" jq
+LEFT JOIN ""{_options.SchemaName}"".""job"" j ON jq.""jobid"" = j.""id""
 WHERE jq.""queue"" = @queue 
-AND jq.""fetchedat"" {0}
+AND jq.""fetchedat"" {{0}}
 AND j.""id"" IS NOT NULL
 LIMIT @count OFFSET @start;
 ", fetched ? "IS NOT NULL" : "IS NULL");

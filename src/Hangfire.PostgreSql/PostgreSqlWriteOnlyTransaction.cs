@@ -62,7 +62,6 @@ namespace Hangfire.PostgreSql
                     command(_connection, transaction);
                 }
                 transaction.Commit();
-                PostgreSqlJobQueue.NewItemInQueueEvent.Set();
             }
         }
 

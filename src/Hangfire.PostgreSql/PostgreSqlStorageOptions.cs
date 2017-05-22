@@ -35,13 +35,12 @@ namespace Hangfire.PostgreSql
             InvisibilityTimeout = TimeSpan.FromMinutes(30);
             DistributedLockTimeout = TimeSpan.FromMinutes(10);
             SchemaName = "hangfire";
-            UseNativeDatabaseTransactions = true;
             PrepareSchemaIfNecessary = true;
         }
 
         public TimeSpan QueuePollInterval
         {
-            get { return _queuePollInterval; }
+            get => _queuePollInterval;
             set
             {
                 ThrowIfValueIsNotPositive(value, nameof(QueuePollInterval));
@@ -51,7 +50,7 @@ namespace Hangfire.PostgreSql
 
         public TimeSpan InvisibilityTimeout
         {
-            get { return _invisibilityTimeout; }
+            get => _invisibilityTimeout;
             set
             {
                 ThrowIfValueIsNotPositive(value, nameof(InvisibilityTimeout));
@@ -61,7 +60,7 @@ namespace Hangfire.PostgreSql
 
         public TimeSpan DistributedLockTimeout
         {
-            get { return _distributedLockTimeout; }
+            get => _distributedLockTimeout;
             set
             {
                 ThrowIfValueIsNotPositive(value, nameof(DistributedLockTimeout));
@@ -69,8 +68,8 @@ namespace Hangfire.PostgreSql
             }
         }
 
-        public bool UseNativeDatabaseTransactions { get; set; }
         public bool PrepareSchemaIfNecessary { get; set; }
+
         public string SchemaName { get; set; }
 
         private static void ThrowIfValueIsNotPositive(TimeSpan value, string fieldName)

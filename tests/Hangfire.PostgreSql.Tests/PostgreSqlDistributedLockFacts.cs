@@ -50,8 +50,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
-                SchemaName = GetSchemaName(),
-                UseNativeDatabaseTransactions = true
+                SchemaName = GetSchemaName()
             };
 
             UseConnection(connection =>
@@ -74,7 +73,6 @@ namespace Hangfire.PostgreSql.Tests
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
                 SchemaName = GetSchemaName(),
-                UseNativeDatabaseTransactions = true,
                 DistributedLockTimeout = TimeSpan.FromSeconds(10)
             };
             
@@ -98,8 +96,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
-                SchemaName = GetSchemaName(),
-                UseNativeDatabaseTransactions = false
+                SchemaName = GetSchemaName()
             };
 
             UseConnection(connection =>
@@ -122,8 +119,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
-                SchemaName = GetSchemaName(),
-                UseNativeDatabaseTransactions = true
+                SchemaName = GetSchemaName()
             };
 
             var releaseLock = new ManualResetEventSlim(false);
@@ -155,8 +151,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
-                SchemaName = GetSchemaName(),
-                UseNativeDatabaseTransactions = false
+                SchemaName = GetSchemaName()
             };
 
             var releaseLock = new ManualResetEventSlim(false);
@@ -189,8 +184,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
-                SchemaName = GetSchemaName(),
-                UseNativeDatabaseTransactions = true
+                SchemaName = GetSchemaName()
             };
 
             UseConnection(connection =>
@@ -211,8 +205,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
-                SchemaName = GetSchemaName(),
-                UseNativeDatabaseTransactions = false
+                SchemaName = GetSchemaName()
             };
 
             UseConnection(connection =>

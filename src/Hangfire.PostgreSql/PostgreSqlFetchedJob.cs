@@ -27,11 +27,11 @@ using Hangfire.Storage;
 namespace Hangfire.PostgreSql
 {
 #if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-	public
+    public
 #else
 	internal
 #endif
-	class PostgreSqlFetchedJob : IFetchedJob
+    class PostgreSqlFetchedJob : IFetchedJob
     {
         private readonly IDbConnection _connection;
         private readonly PostgreSqlStorageOptions _options;
@@ -40,51 +40,42 @@ namespace Hangfire.PostgreSql
         private bool _requeued;
 
         public PostgreSqlFetchedJob(
-            IDbConnection connection, 
+            IDbConnection connection,
             PostgreSqlStorageOptions options,
-            int id, 
-            string jobId, 
+            int id,
+            string jobId,
             string queue)
         {
-            if (connection == null) throw new ArgumentNullException("connection");
-            if (jobId == null) throw new ArgumentNullException("jobId");
-            if (queue == null) throw new ArgumentNullException("queue");
-            if (options == null) throw new ArgumentNullException("options");
-
-            _connection = connection;
-            _options = options;
+            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+            _options = options ?? throw new ArgumentNullException(nameof(options));
 
             Id = id;
-            JobId = jobId;
-            Queue = queue;
+            JobId = jobId ?? throw new ArgumentNullException(nameof(jobId));
+            Queue = queue ?? throw new ArgumentNullException(nameof(queue));
         }
 
-        public int Id { get; private set; }
-        public string JobId { get; private set; }
-        public string Queue { get; private set; }
+        public int Id { get; }
+        public string JobId { get; }
+        public string Queue { get; }
 
         public void RemoveFromQueue()
         {
-            _connection.Execute(
-                @"
-DELETE FROM """ + _options.SchemaName + @""".""jobqueue"" 
+            var sql = $@"
+DELETE FROM ""{_options.SchemaName}"".""jobqueue"" 
 WHERE ""id"" = @id;
-",
-                new { id = Id });
-
+";
+            _connection.Execute(sql, new { id = Id });
             _removedFromQueue = true;
         }
 
         public void Requeue()
         {
-            _connection.Execute(
-                @"
-UPDATE """ + _options.SchemaName + @""".""jobqueue"" 
+            var sql = $@"
+UPDATE ""{_options.SchemaName}"".""jobqueue"" 
 SET ""fetchedat"" = NULL 
 WHERE ""id"" = @id;
-",
-                new { id = Id });
-
+";
+            _connection.Execute(sql, new { id = Id });
             _requeued = true;
         }
 

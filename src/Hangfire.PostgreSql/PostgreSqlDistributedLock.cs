@@ -22,17 +22,17 @@
 using System;
 using System.Data;
 using System.Diagnostics;
-using System.Threading;
+using System.Threading.Tasks;
 using Dapper;
 
 namespace Hangfire.PostgreSql
 {
 #if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-	public
+    public
 #else
 	internal
 #endif
-	sealed class PostgreSqlDistributedLock : IDisposable
+    sealed class PostgreSqlDistributedLock : IDisposable
     {
         private readonly string _resource;
         private readonly IDbConnection _connection;
@@ -43,17 +43,11 @@ namespace Hangfire.PostgreSql
             PostgreSqlStorageOptions options)
         {
             if (string.IsNullOrEmpty(resource)) throw new ArgumentNullException(nameof(resource));
-            if (connection == null) throw new ArgumentNullException(nameof(connection));
-            if (options == null) throw new ArgumentNullException(nameof(options));
-
             _resource = resource;
-            _connection = connection;
-            _options = options;
-
-            if (_options.UseNativeDatabaseTransactions)
-                PostgreSqlDistributedLock_Init_Transaction(resource, timeout, connection, options);
-            else
-                PostgreSqlDistributedLock_Init_UpdateCount(resource, timeout, connection, options);
+            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            
+            PostgreSqlDistributedLock_Init_Transaction(resource, timeout, connection, options);
         }
 
         private static void PostgreSqlDistributedLock_Init_Transaction(string resource, TimeSpan timeout,
@@ -103,7 +97,7 @@ WHERE NOT EXISTS (
                     if (sleepDuration > 1000) sleepDuration = 1000;
                     if (sleepDuration > 0)
                     {
-                        Thread.Sleep(sleepDuration);
+                        Task.Delay(sleepDuration).Wait();
                     }
                     else
                     {
@@ -177,7 +171,7 @@ WHERE NOT EXISTS (
                     int sleepDuration = (int)(timeout.TotalMilliseconds - lockAcquiringTime.ElapsedMilliseconds);
                     if (sleepDuration > 1000) sleepDuration = 1000;
                     if (sleepDuration > 0)
-                        Thread.Sleep(sleepDuration);
+                        Task.Delay(sleepDuration).Wait();
                     else
                         tryAcquireLock = false;
                 }
