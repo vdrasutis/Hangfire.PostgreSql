@@ -3,20 +3,15 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using Dapper;
-using Hangfire.PostgreSql.Tests.Utils;
 using Npgsql;
 using Xunit.Sdk;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Utils
 {
     public class CleanDatabaseAttribute : BeforeAfterTestAttribute
     {
         private static readonly object GlobalLock = new object();
         private static bool _sqlObjectInstalled;
-
-        public CleanDatabaseAttribute()
-        {
-        }
 
         public override void Before(MethodInfo methodUnderTest)
         {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using Hangfire.PostgreSql.Tests.Utils;
 using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
@@ -20,7 +21,7 @@ namespace Hangfire.PostgreSql.Tests
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new PostgreSqlStorage(connectionString: null));
 
-            Assert.Equal("nameOrConnectionString", exception.ParamName);
+            Assert.Equal("connectionString", exception.ParamName);
         }
 
         [Fact]
@@ -61,7 +62,6 @@ namespace Hangfire.PostgreSql.Tests
             using (var storageConnection = (PostgreSqlConnection) storage.GetConnection())
             {
                 Assert.Same(connection, storageConnection.Connection);
-                Assert.False(storageConnection.OwnsConnection);
             }
         }
 
@@ -80,7 +80,6 @@ namespace Hangfire.PostgreSql.Tests
             using (var connection = (PostgreSqlConnection) storage.GetConnection())
             {
                 Assert.NotNull(connection);
-                Assert.True(connection.OwnsConnection);
             }
         }
 

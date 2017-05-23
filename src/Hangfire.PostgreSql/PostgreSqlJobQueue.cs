@@ -32,17 +32,18 @@ namespace Hangfire.PostgreSql
 
             var fetchJobSqlTemplate = $@"
 WITH fetched AS (
-   SELECT ""id""
-   FROM ""{_options.SchemaName}"".""jobqueue""
-   WHERE ""queue"" = ANY (@queues)
+   SELECT id
+   FROM ""{_options.SchemaName}"".jobqueue
+   WHERE queue = ANY (@queues)
    LIMIT 1
    FOR UPDATE SKIP LOCKED
 )
-UPDATE ""{_options.SchemaName}"".""jobqueue"" 
-SET ""fetchedat"" = NOW() AT TIME ZONE 'UTC'
-WHERE ""id"" = fetched.id
-AND ""fetchedat"" {{0}}
-RETURNING ""id"" AS ""Id"", ""jobid"" AS ""JobId"", ""queue"" AS ""Queue"", ""fetchedat"" AS ""FetchedAt"";
+UPDATE ""{_options.SchemaName}"".jobqueue AS jobqueue
+SET fetchedat = NOW() AT TIME ZONE 'UTC'
+FROM fetched
+WHERE jobqueue.id = fetched.id
+AND fetchedat {{0}}
+RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS FetchedAt;
 ";
 
             var fetchConditions = new[]
@@ -55,7 +56,7 @@ RETURNING ""id"" AS ""Id"", ""jobid"" AS ""JobId"", ""queue"" AS ""Queue"", ""fe
 
                 string fetchJobSql = string.Format(fetchJobSqlTemplate, fetchConditions[currentQueryIndex]);
 
-                Utils.TryExecute(() =>
+                Utils.Utils.TryExecute(() =>
                     {
                         var jobToFetch = _connection.Query<FetchedJob>(
                                 fetchJobSql,

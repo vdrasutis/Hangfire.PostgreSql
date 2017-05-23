@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Hangfire.PostgreSql
+namespace Hangfire.PostgreSql.Utils
 {
     public static partial class Utils
     {

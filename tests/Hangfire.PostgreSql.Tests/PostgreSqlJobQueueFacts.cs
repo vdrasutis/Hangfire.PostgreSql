@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Tests.Utils;
 using Moq;
 using Npgsql;
 using Xunit;
@@ -12,7 +13,7 @@ namespace Hangfire.PostgreSql.Tests
 {
     public class PostgreSqlJobQueueFacts
     {
-        private static readonly string[] DefaultQueues = {"default"};
+        private static readonly string[] DefaultQueues = { "default" };
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
@@ -58,25 +59,14 @@ namespace Hangfire.PostgreSql.Tests
                 queue.Enqueue("2", "2");
                 queue.Enqueue("3", "3");
 
-                Assert.Equal("1", queue.Dequeue(new[] {"1", "2", "3"}, token).JobId);
-                Assert.Equal("2", queue.Dequeue(new[] {"2", "3", "1"}, token).JobId);
-                Assert.Equal("3", queue.Dequeue(new[] {"3", "1", "2"}, token).JobId);
+                Assert.Equal("1", queue.Dequeue(new[] { "1", "2", "3" }, token).JobId);
+                Assert.Equal("2", queue.Dequeue(new[] { "2", "3", "1" }, token).JobId);
+                Assert.Equal("3", queue.Dequeue(new[] { "3", "1", "2" }, token).JobId);
             });
         }
 
         [Fact, CleanDatabase]
-        private void Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsEmpty_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsEmpty(true);
-        }
-
-        [Fact, CleanDatabase]
-        private void Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsEmpty_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsEmpty(false);
-        }
-
-        private void Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsEmpty(bool useNativeDatabaseTransactions)
+        private void Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsEmpty()
         {
             UseConnection(connection =>
             {
@@ -90,19 +80,6 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact]
-        private void
-            Dequeue_ThrowsOperationCanceled_WhenCancellationTokenIsSetAtTheBeginning_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ThrowsOperationCanceled_WhenCancellationTokenIsSetAtTheBeginning();
-        }
-
-        [Fact]
-        private void
-            Dequeue_ThrowsOperationCanceled_WhenCancellationTokenIsSetAtTheBeginning_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ThrowsOperationCanceled_WhenCancellationTokenIsSetAtTheBeginning();
-        }
-
         private void Dequeue_ThrowsOperationCanceled_WhenCancellationTokenIsSetAtTheBeginning()
         {
             UseConnection(connection =>
@@ -117,18 +94,7 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Dequeue_ShouldWaitIndefinitely_WhenThereAreNoJobs_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldWaitIndefinitely_WhenThereAreNoJobs(true);
-        }
-
-        [Fact, CleanDatabase]
-        public void Dequeue_ShouldWaitIndefinitely_WhenThereAreNoJobs_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldWaitIndefinitely_WhenThereAreNoJobs(false);
-        }
-
-        private void Dequeue_ShouldWaitIndefinitely_WhenThereAreNoJobs(bool useNativeDatabaseTransactions)
+        public void Dequeue_ShouldWaitIndefinitely_WhenThereAreNoJobs()
         {
             UseConnection(connection =>
             {
@@ -141,18 +107,7 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Dequeue_ShouldFetchAJob_FromTheSpecifiedQueue_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldFetchAJob_FromTheSpecifiedQueue(true);
-        }
-
-        [Fact, CleanDatabase]
-        public void Dequeue_ShouldFetchAJob_FromTheSpecifiedQueue_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldFetchAJob_FromTheSpecifiedQueue(false);
-        }
-
-        private void Dequeue_ShouldFetchAJob_FromTheSpecifiedQueue(bool useNativeDatabaseTransactions)
+        public void Dequeue_ShouldFetchAJob_FromTheSpecifiedQueue()
         {
             string arrangeSql = @"
 insert into """ + GetSchemaName() + @""".""jobqueue"" (""jobid"", ""queue"")
@@ -161,13 +116,13 @@ values (@jobId, @queue) returning ""id""";
             // Arrange
             UseConnection(connection =>
             {
-                var id = (int) connection.Query(
+                var id = (int)connection.Query(
                     arrangeSql,
-                    new {jobId = 1, queue = "default"}).Single().id;
+                    new { jobId = 1, queue = "default" }).Single().id;
                 var queue = CreateJobQueue(connection);
 
                 // Act
-                var payload = (PostgreSqlFetchedJob) queue.Dequeue(
+                var payload = (PostgreSqlFetchedJob)queue.Dequeue(
                     DefaultQueues,
                     CreateTimingOutCancellationToken());
 
@@ -179,18 +134,7 @@ values (@jobId, @queue) returning ""id""";
         }
 
         [Fact, CleanDatabase]
-        public void Dequeue_ShouldLeaveJobInTheQueue_ButSetItsFetchedAtValue_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldLeaveJobInTheQueue_ButSetItsFetchedAtValue();
-        }
-
-        [Fact, CleanDatabase]
-        public void Dequeue_ShouldLeaveJobInTheQueue_ButSetItsFetchedAtValue_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldLeaveJobInTheQueue_ButSetItsFetchedAtValue();
-        }
-
-        private void Dequeue_ShouldLeaveJobInTheQueue_ButSetItsFetchedAtValue()
+        public void Dequeue_ShouldLeaveJobInTheQueue_ButSetItsFetchedAtValue()
         {
             string arrangeSql = @"
 WITH i AS (
@@ -206,7 +150,7 @@ select i.""id"", @queue from i;
             {
                 connection.Execute(
                     arrangeSql,
-                    new {invocationData = "", arguments = "", queue = "default"});
+                    new { invocationData = "", arguments = "", queue = "default" });
                 var queue = CreateJobQueue(connection);
 
                 // Act
@@ -219,7 +163,7 @@ select i.""id"", @queue from i;
 
                 var fetchedAt = connection.Query<DateTime?>(
                     @"select ""fetchedat"" from """ + GetSchemaName() + @""".""jobqueue"" where ""jobid"" = @id",
-                    new {id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture)}).Single();
+                    new { id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture) }).Single();
 
                 Assert.NotNull(fetchedAt);
                 Assert.True(fetchedAt > DateTime.UtcNow.AddMinutes(-1));
@@ -227,18 +171,7 @@ select i.""id"", @queue from i;
         }
 
         [Fact, CleanDatabase]
-        public void Dequeue_ShouldFetchATimedOutJobs_FromTheSpecifiedQueue_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldFetchATimedOutJobs_FromTheSpecifiedQueue();
-        }
-
-        [Fact, CleanDatabase]
-        public void Dequeue_ShouldFetchATimedOutJobs_FromTheSpecifiedQueue_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldFetchATimedOutJobs_FromTheSpecifiedQueue();
-        }
-
-        private void Dequeue_ShouldFetchATimedOutJobs_FromTheSpecifiedQueue()
+        public void Dequeue_ShouldFetchATimedOutJobs_FromTheSpecifiedQueue()
         {
             string arrangeSql = @"
 WITH i AS (
@@ -274,18 +207,7 @@ select i.""id"", @queue, @fetchedAt from i;
         }
 
         [Fact, CleanDatabase]
-        public void Dequeue_ShouldSetFetchedAt_OnlyForTheFetchedJob_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldSetFetchedAt_OnlyForTheFetchedJob();
-        }
-
-        [Fact, CleanDatabase]
-        public void Dequeue_ShouldSetFetchedAt_OnlyForTheFetchedJob_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldSetFetchedAt_OnlyForTheFetchedJob();
-        }
-
-        private void Dequeue_ShouldSetFetchedAt_OnlyForTheFetchedJob()
+        public void Dequeue_ShouldSetFetchedAt_OnlyForTheFetchedJob()
         {
             string arrangeSql = @"
 WITH i AS (
@@ -315,25 +237,14 @@ select i.""id"", @queue from i;
                 // Assert
                 var otherJobFetchedAt = connection.Query<DateTime?>(
                     @"select ""fetchedat"" from """ + GetSchemaName() + @""".""jobqueue"" where ""jobid"" <> @id",
-                    new {id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture)}).Single();
+                    new { id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture) }).Single();
 
                 Assert.Null(otherJobFetchedAt);
             });
         }
 
         [Fact, CleanDatabase]
-        public void Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues();
-        }
-
-        [Fact, CleanDatabase]
-        public void Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues();
-        }
-
-        private void Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues()
+        public void Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues()
         {
             string arrangeSql = @"
 WITH i AS (
@@ -349,7 +260,7 @@ select i.""id"", @queue from i;
 
                 connection.Execute(
                     arrangeSql,
-                    new {queue = "critical", invocationData = "", arguments = ""});
+                    new { queue = "critical", invocationData = "", arguments = "" });
 
                 Assert.Throws<OperationCanceledException>(
                     () => queue.Dequeue(
@@ -359,17 +270,6 @@ select i.""id"", @queue from i;
         }
 
         [Fact, CleanDatabase]
-        private void Dequeue_ShouldFetchJobs_FromMultipleQueues_WithUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldFetchJobs_FromMultipleQueues();
-        }
-
-        [Fact, CleanDatabase]
-        private void Dequeue_ShouldFetchJobs_FromMultipleQueues_WithoutUseNativeDatabaseTransactions()
-        {
-            Dequeue_ShouldFetchJobs_FromMultipleQueues();
-        }
-
         private void Dequeue_ShouldFetchJobs_FromMultipleQueues()
         {
             string arrangeSql = @"
@@ -381,7 +281,7 @@ insert into """ + GetSchemaName() + @""".""jobqueue"" (""jobid"", ""queue"")
 select i.""id"", @queue from i;
 ";
 
-            var queueNames = new[] {"default", "critical"};
+            var queueNames = new[] { "default", "critical" };
 
             UseConnection(connection =>
             {
@@ -395,14 +295,14 @@ select i.""id"", @queue from i;
 
                 var queue = CreateJobQueue(connection);
 
-                var queueFirst = (PostgreSqlFetchedJob) queue.Dequeue(
+                var queueFirst = (PostgreSqlFetchedJob)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
                 Assert.NotNull(queueFirst.JobId);
                 Assert.Contains(queueFirst.Queue, queueNames);
 
-                var queueLast = (PostgreSqlFetchedJob) queue.Dequeue(
+                var queueLast = (PostgreSqlFetchedJob)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
@@ -412,18 +312,7 @@ select i.""id"", @queue from i;
         }
 
         [Fact, CleanDatabase]
-        public void Enqueue_AddsAJobToTheQueue_WithUseNativeDatabaseTransactions()
-        {
-            Enqueue_AddsAJobToTheQueue();
-        }
-
-        [Fact, CleanDatabase]
-        public void Enqueue_AddsAJobToTheQueue_WithoutUseNativeDatabaseTransactions()
-        {
-            Enqueue_AddsAJobToTheQueue();
-        }
-
-        private void Enqueue_AddsAJobToTheQueue()
+        public void Enqueue_AddsAJobToTheQueue()
         {
             UseConnection(connection =>
             {

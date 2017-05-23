@@ -3,6 +3,7 @@ using System.Data;
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Tests.Utils;
 using Moq;
 using Npgsql;
 using Xunit;
@@ -46,7 +47,7 @@ namespace Hangfire.PostgreSql.Tests
 
 
         [Fact, CleanDatabase]
-        public void Ctor_AcquiresExclusiveApplicationLock_WithUseNativeDatabaseTransactions_OnSession()
+        public void Ctor_AcquiresExclusiveApplicationLock()
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
@@ -60,7 +61,7 @@ namespace Hangfire.PostgreSql.Tests
 
                 var lockCount = connection.Query<long>(
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
-                    new {resource = "hello"}).Single();
+                    new { resource = "hello" }).Single();
 
                 Assert.Equal(lockCount, 1);
                 //Assert.Equal("Exclusive", lockMode);
@@ -68,8 +69,7 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void
-            Ctor_AcquiresExclusiveApplicationLock_WithUseNativeDatabaseTransactions_OnSession_WhenDeadlockIsOccured()
+        public void Ctor_AcquiresExclusiveApplicationLock_WhenDeadlockIsOccured()
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
@@ -94,30 +94,7 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Ctor_AcquiresExclusiveApplicationLock_WithoutUseNativeDatabaseTransactions_OnSession()
-        {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
-
-            UseConnection(connection =>
-            {
-                // ReSharper disable once UnusedVariable
-                var distributedLock = new PostgreSqlDistributedLock("hello", _timeout, connection, options);
-
-                var lockCount = connection.Query<long>(
-                    @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
-                    new {resource = "hello"}).Single();
-
-                Assert.Equal(lockCount, 1);
-                //Assert.Equal("Exclusive", lockMode);
-            });
-        }
-
-
-        [Fact, CleanDatabase]
-        public void Ctor_ThrowsAnException_IfLockCanNotBeGranted_WithUseNativeDatabaseTransactions()
+        public void Ctor_ThrowsAnException_IfLockCanNotBeGranted()
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
@@ -149,40 +126,7 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Ctor_ThrowsAnException_IfLockCanNotBeGranted_WithoutUseNativeDatabaseTransactions()
-        {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
-
-            var releaseLock = new ManualResetEventSlim(false);
-            var lockAcquired = new ManualResetEventSlim(false);
-
-            var thread = new Thread(
-                () => UseConnection(connection1 =>
-                {
-                    using (new PostgreSqlDistributedLock("exclusive", _timeout, connection1, options))
-                    {
-                        lockAcquired.Set();
-                        releaseLock.Wait();
-                    }
-                }));
-            thread.Start();
-
-            lockAcquired.Wait();
-
-            UseConnection(connection2 =>
-                Assert.Throws<PostgreSqlDistributedLockException>(
-                    () => new PostgreSqlDistributedLock("exclusive", _timeout, connection2, options)));
-
-            releaseLock.Set();
-            thread.Join();
-        }
-
-
-        [Fact, CleanDatabase]
-        public void Dispose_ReleasesExclusiveApplicationLock_WithUseNativeDatabaseTransactions()
+        public void Dispose_ReleasesExclusiveApplicationLock()
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
@@ -196,33 +140,11 @@ namespace Hangfire.PostgreSql.Tests
 
                 var lockCount = connection.Query<long>(
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
-                    new {resource = "hello"}).Single();
+                    new { resource = "hello" }).Single();
 
                 Assert.Equal(lockCount, 0);
             });
         }
-
-        [Fact, CleanDatabase]
-        public void Dispose_ReleasesExclusiveApplicationLock_WithoutUseNativeDatabaseTransactions()
-        {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
-
-            UseConnection(connection =>
-            {
-                var distributedLock = new PostgreSqlDistributedLock("hello", _timeout, connection, options);
-                distributedLock.Dispose();
-
-                var lockCount = connection.Query<long>(
-                    @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
-                    new {resource = "hello"}).Single();
-
-                Assert.Equal(lockCount, 0);
-            });
-        }
-
 
         private void UseConnection(Action<NpgsqlConnection> action)
         {

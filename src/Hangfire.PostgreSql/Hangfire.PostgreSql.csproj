@@ -22,6 +22,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Schema\Install.v3.sql" />
+    <None Remove="Schema\Install.v4.sql" />
+    <None Remove="Schema\Install.v5.sql" />
+    <None Remove="Schema\Install.v6.sql" />
+    <None Remove="Schema\Install.v7.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Schema\Install.v3.sql" />
+    <EmbeddedResource Include="Schema\Install.v4.sql" />
+    <EmbeddedResource Include="Schema\Install.v5.sql" />
+    <EmbeddedResource Include="Schema\Install.v6.sql" />
+    <EmbeddedResource Include="Schema\Install.v7.sql" />
     <EmbeddedResource Include="Schema\Install.v8.sql" Exclude="bin\**;obj\**;**\*.xproj;packages\**;@(EmbeddedResource)" />
   </ItemGroup>
 
@@ -41,10 +54,6 @@
     <Reference Include="System.Configuration" />
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Schema\" />
   </ItemGroup>
 
 </Project>

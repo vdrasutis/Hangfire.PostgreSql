@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Dapper;
 using Hangfire.Common;
+using Hangfire.PostgreSql.Tests.Utils;
 using Hangfire.Server;
 using Hangfire.Storage;
 using Moq;
@@ -65,7 +66,7 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Dispose_DisposesTheConnection_IfOwned()
+        public void Dispose_DoesNotDisposeTheConnection()
         {
             using (var sqlConnection = ConnectionUtils.CreateConnection())
             {
@@ -73,24 +74,9 @@ namespace Hangfire.PostgreSql.Tests
 
                 connection.Dispose();
 
-                Assert.Equal(ConnectionState.Closed, sqlConnection.State);
-            }
-        }
-
-        [Fact, CleanDatabase]
-        public void Dispose_DoesNotDisposeTheConnection_IfNotOwned()
-        {
-            using (var sqlConnection = ConnectionUtils.CreateConnection())
-            {
-                var connection = new PostgreSqlConnection(sqlConnection, _providers, ownsConnection: false,
-                    options: _options);
-
-                connection.Dispose();
-
                 Assert.Equal(ConnectionState.Open, sqlConnection.State);
             }
         }
-
 
         [Fact, CleanDatabase]
         public void FetchNextJob_DelegatesItsExecution_ToTheQueue()
@@ -98,7 +84,7 @@ namespace Hangfire.PostgreSql.Tests
             UseConnection(connection =>
             {
                 var token = new CancellationToken();
-                var queues = new[] {"default"};
+                var queues = new[] { "default" };
 
                 connection.FetchNextJob(queues, token);
 
@@ -113,10 +99,10 @@ namespace Hangfire.PostgreSql.Tests
             {
                 var token = new CancellationToken();
                 var anotherProvider = new Mock<IPersistentJobQueueProvider>();
-                _providers.Add(anotherProvider.Object, new[] {"critical"});
+                _providers.Add(anotherProvider.Object, new[] { "critical" });
 
                 Assert.Throws<InvalidOperationException>(
-                    () => connection.FetchNextJob(new[] {"critical", "default"}, token));
+                    () => connection.FetchNextJob(new[] { "critical", "default" }, token));
             });
         }
 
@@ -180,7 +166,7 @@ namespace Hangfire.PostgreSql.Tests
                 var createdAt = new DateTime(2012, 12, 12);
                 var jobId = connection.CreateExpiredJob(
                     Job.FromExpression(() => SampleMethod("Hello")),
-                    new Dictionary<string, string> {{"Key1", "Value1"}, {"Key2", "Value2"}},
+                    new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" } },
                     createdAt,
                     TimeSpan.FromDays(1));
 
@@ -190,10 +176,10 @@ namespace Hangfire.PostgreSql.Tests
                 var sqlJob = sql.Query(@"select * from """ + GetSchemaName() + @""".""job""").Single();
                 Assert.Equal(jobId, sqlJob.id.ToString());
                 Assert.Equal(createdAt, sqlJob.createdat);
-                Assert.Equal(null, (int?) sqlJob.stateid);
-                Assert.Equal(null, (string) sqlJob.statename);
+                Assert.Equal(null, (int?)sqlJob.stateid);
+                Assert.Equal(null, (string)sqlJob.statename);
 
-                var invocationData = JobHelper.FromJson<InvocationData>((string) sqlJob.invocationdata);
+                var invocationData = JobHelper.FromJson<InvocationData>((string)sqlJob.invocationdata);
                 invocationData.Arguments = sqlJob.arguments;
 
                 var job = invocationData.Deserialize();
@@ -206,8 +192,8 @@ namespace Hangfire.PostgreSql.Tests
 
                 var parameters = sql.Query(
                         @"select * from """ + GetSchemaName() + @""".""jobparameter"" where ""jobid"" = @id",
-                        new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture)})
-                    .ToDictionary(x => (string) x.name, x => (string) x.value);
+                        new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) })
+                    .ToDictionary(x => (string)x.name, x => (string)x.value);
 
                 Assert.Equal("Value1", parameters["Key1"]);
                 Assert.Equal("Value2", parameters["Key2"]);
@@ -242,7 +228,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
             {
                 var job = Job.FromExpression(() => SampleMethod("wrong"));
 
-                var jobId = (int) sql.Query(
+                var jobId = (int)sql.Query(
                     arrangeSql,
                     new
                     {
@@ -311,13 +297,13 @@ returning ""id"";";
                     {"Key", "Value"}
                 };
 
-                var jobId = (int) sql.Query(createJobSql).Single().id;
+                var jobId = (int)sql.Query(createJobSql).Single().id;
 
-                var stateId = (int) sql.Query(
+                var stateId = (int)sql.Query(
                     createStateSql,
-                    new {jobId = jobId, name = "Name", reason = "Reason", @data = JobHelper.ToJson(data)}).Single().id;
+                    new { jobId = jobId, name = "Name", reason = "Reason", @data = JobHelper.ToJson(data) }).Single().id;
 
-                sql.Execute(updateJobStateSql, new {jobId = jobId, stateId = stateId});
+                sql.Execute(updateJobStateSql, new { jobId = jobId, stateId = stateId });
 
                 var result = connection.GetStateData(jobId.ToString(CultureInfo.InvariantCulture));
                 Assert.NotNull(result);
@@ -346,7 +332,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
                         arguments = "['Arguments']"
                     }).Single();
 
-                var result = connection.GetJobData(((int) jobId.id).ToString());
+                var result = connection.GetJobData(((int)jobId.id).ToString());
 
                 Assert.NotNull(result.LoadException);
             });
@@ -393,7 +379,7 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 var parameter = sql.Query(
                     @"select * from """ + GetSchemaName() +
                     @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
-                    new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name"}).Single();
+                    new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name" }).Single();
 
                 Assert.Equal("Value", parameter.value);
             });
@@ -417,7 +403,7 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 var parameter = sql.Query(
                     @"select * from """ + GetSchemaName() +
                     @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
-                    new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name"}).Single();
+                    new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name" }).Single();
 
                 Assert.Equal("AnotherValue", parameter.value);
             });
@@ -440,9 +426,9 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 var parameter = sql.Query(
                     @"select * from """ + GetSchemaName() +
                     @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
-                    new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name"}).Single();
+                    new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name" }).Single();
 
-                Assert.Equal((string) null, parameter.value);
+                Assert.Equal((string)null, parameter.value);
             });
         }
 
@@ -497,7 +483,7 @@ RETURNING ""jobid"";
             {
                 var id = sql.Query<int>(
                     arrangeSql,
-                    new {name = "name", value = "value"}).Single();
+                    new { name = "name", value = "value" }).Single();
 
                 var value = connection.GetJobParameter(Convert.ToString(id, CultureInfo.InvariantCulture), "name");
 
@@ -588,21 +574,21 @@ values
             {
                 var context1 = new ServerContext
                 {
-                    Queues = new[] {"critical", "default"},
+                    Queues = new[] { "critical", "default" },
                     WorkerCount = 4
                 };
                 connection.AnnounceServer("server", context1);
 
                 var server = sql.Query(@"select * from """ + GetSchemaName() + @""".""server""").Single();
                 Assert.Equal("server", server.id);
-                Assert.True(((string) server.data).StartsWith(
+                Assert.True(((string)server.data).StartsWith(
                         "{\"WorkerCount\":4,\"Queues\":[\"critical\",\"default\"],\"StartedAt\":"),
                     server.data);
                 Assert.NotNull(server.lastheartbeat);
 
                 var context2 = new ServerContext
                 {
-                    Queues = new[] {"default"},
+                    Queues = new[] { "default" },
                     WorkerCount = 1000
                 };
                 connection.AnnounceServer("server", context2);
@@ -661,7 +647,7 @@ values
                 connection.Heartbeat("server1");
 
                 var servers = sql.Query(@"select * from """ + GetSchemaName() + @""".""server""")
-                    .ToDictionary(x => (string) x.id, x => (DateTime) x.lastheartbeat);
+                    .ToDictionary(x => (string)x.id, x => (DateTime)x.lastheartbeat);
 
                 Assert.NotEqual(2012, servers["server1"].Year);
                 Assert.Equal(2012, servers["server2"].Year);
@@ -782,8 +768,8 @@ values (@key, 0.0, @value)";
 
                 var result = sql.Query(
                         @"select * from """ + GetSchemaName() + @""".""hash"" where ""key"" = @key",
-                        new {key = "some-hash"})
-                    .ToDictionary(x => (string) x.field, x => (string) x.value);
+                        new { key = "some-hash" })
+                    .ToDictionary(x => (string)x.field, x => (string)x.value);
 
                 Assert.Equal("Value1", result["Key1"]);
                 Assert.Equal("Value2", result["Key2"]);
@@ -915,7 +901,7 @@ values (@key, @field, @value)";
                 var result = connection.GetAllItemsFromList("list-1");
 
                 // Assert
-                Assert.Equal(new[] {"3", "1"}, result);
+                Assert.Equal(new[] { "3", "1" }, result);
             });
         }
 
@@ -1091,7 +1077,7 @@ values (@key, @field, @value)";
                 var result = connection.GetRangeFromList("list-1", 1, 2);
 
                 // Assert
-                Assert.Equal(new[] {"4", "3"}, result);
+                Assert.Equal(new[] { "4", "3" }, result);
             });
         }
 
@@ -1207,7 +1193,7 @@ values (@key, @field, @value)";
 
                 var result = connection.GetRangeFromSet("set-1", 2, 3);
 
-                Assert.Equal(new[] {"3", "4"}, result);
+                Assert.Equal(new[] { "3", "4" }, result);
             });
         }
 

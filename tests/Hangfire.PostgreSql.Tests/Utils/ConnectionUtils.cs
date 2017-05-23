@@ -1,7 +1,7 @@
 ﻿using System;
 using Npgsql;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Utils
 {
     public static class ConnectionUtils
     {
