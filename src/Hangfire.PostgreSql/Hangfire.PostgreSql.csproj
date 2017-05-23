@@ -14,9 +14,9 @@
     <PackageReleaseNotes>https://github.com/ahydrax/Hangfire.PostgreSql/releases</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/ahydrax/Hangfire.PostgreSql</PackageProjectUrl>
     <PackageLicenseUrl>https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/LICENSE.md</PackageLicenseUrl>
-    <Version>1.4.7.2</Version>
-    <FileVersion>1.4.7.2</FileVersion>
-    <AssemblyVersion>1.4.7.2</AssemblyVersion>
+    <Version>1.4.7.3</Version>
+    <FileVersion>1.4.7.3</FileVersion>
+    <AssemblyVersion>1.4.7.3</AssemblyVersion>
     <NeutralLanguage />
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Company>Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Company>

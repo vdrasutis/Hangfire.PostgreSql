@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Threading;
 using Hangfire.Logging;
 using Hangfire.Server;
@@ -33,7 +34,12 @@ namespace Hangfire.PostgreSql
 
             _connectionString = connectionString;
             _options = options;
-            _lazyConnection = new Lazy<NpgsqlConnection>(() => new NpgsqlConnection(_connectionString), LazyThreadSafetyMode.ExecutionAndPublication);
+            _lazyConnection = new Lazy<NpgsqlConnection>(() =>
+            {
+                var connection = new NpgsqlConnection(_connectionString);
+                connection.Open();
+                return connection;
+            }, LazyThreadSafetyMode.ExecutionAndPublication);
             Initialize();
         }
 
@@ -43,7 +49,6 @@ namespace Hangfire.PostgreSql
         /// </summary>
         /// <param name="connectionString">A Postgres connection string</param>
         /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> argument is null.</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="options"/> argument is null.</exception>
         /// <exception cref="ArgumentException"><paramref name="connectionString"/> argument is a valid 
         /// Postgres connection string </exception>
         public PostgreSqlStorage(string connectionString)
@@ -65,7 +70,12 @@ namespace Hangfire.PostgreSql
             Guard.ThrowIfConnectionContainsEnlist(existingConnection);
 
             _connectionString = existingConnection.ConnectionString;
-            _lazyConnection = new Lazy<NpgsqlConnection>(() => existingConnection);
+            _lazyConnection = new Lazy<NpgsqlConnection>(() =>
+            {
+                if (existingConnection.State != ConnectionState.Open)
+                    existingConnection.Open();
+                return existingConnection;
+            }, LazyThreadSafetyMode.ExecutionAndPublication);
             _options = options;
             Initialize();
         }
@@ -103,7 +113,7 @@ namespace Hangfire.PostgreSql
         public override IStorageConnection GetConnection()
             => new PostgreSqlConnection(_lazyConnection.Value, QueueProviders, _options);
 
-        public override IEnumerable<IServerComponent> GetComponents() 
+        public override IEnumerable<IServerComponent> GetComponents()
             => new[] { new ExpirationManager(this, _options) };
 
         public override void WriteOptionsToLog(ILog logger)
