@@ -44,7 +44,7 @@ namespace Hangfire.PostgreSql.Tests.Utils
             {
                 if (stream == null)
                 {
-                    throw new InvalidOperationException(String.Format(
+                    throw new InvalidOperationException(string.Format(
                         "Requested resource `{0}` was not found in the assembly `{1}`.",
                         resourceName,
                         assembly));

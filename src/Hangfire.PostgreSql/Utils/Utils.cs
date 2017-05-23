@@ -2,7 +2,7 @@
 
 namespace Hangfire.PostgreSql.Utils
 {
-    public static partial class Utils
+    internal static class Utils
     {
         public static bool TryExecute(
             Action action,

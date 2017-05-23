@@ -1,10 +1,8 @@
-﻿using System.Data;
-
-namespace Hangfire.PostgreSql
+﻿namespace Hangfire.PostgreSql
 {
-    public interface IPersistentJobQueueProvider
+    internal interface IPersistentJobQueueProvider
     {
-        IPersistentJobQueue GetJobQueue(IDbConnection connection);
-        IPersistentJobQueueMonitoringApi GetJobQueueMonitoringApi(IDbConnection connection);
+        IPersistentJobQueue GetJobQueue(IPostgreSqlConnectionProvider connectionProvider);
+        IPersistentJobQueueMonitoringApi GetJobQueueMonitoringApi(IPostgreSqlConnectionProvider connection);
     }
 }

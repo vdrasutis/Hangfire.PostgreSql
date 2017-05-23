@@ -11,7 +11,7 @@ namespace Hangfire.PostgreSql.Tests
 
         public PostgreSqlStorageFacts()
         {
-            _options = new PostgreSqlStorageOptions {PrepareSchemaIfNecessary = false};
+            _options = new PostgreSqlStorageOptions { PrepareSchemaIfNecessary = false };
         }
 
 
@@ -34,35 +34,14 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Ctor_CanCreateSqlServerStorage_WithExistingConnection()
-        {
-            var connection = ConnectionUtils.CreateConnection();
-            var storage = new PostgreSqlStorage(connection, _options);
-
-            Assert.NotNull(storage);
-        }
-
-        [Fact, CleanDatabase]
         public void Ctor_InitializesDefaultJobQueueProvider_AndPassesCorrectOptions()
         {
             var storage = CreateStorage();
             var providers = storage.QueueProviders;
 
-            var provider = (PostgreSqlJobQueueProvider) providers.GetProvider("default");
+            var provider = (PostgreSqlJobQueueProvider)providers.GetProvider("default");
 
             Assert.Same(_options, provider.Options);
-        }
-
-        [Fact, CleanDatabase]
-        public void GetConnection_ReturnsExistingConnection_WhenStorageUsesIt()
-        {
-            var connection = ConnectionUtils.CreateConnection();
-            var storage = new PostgreSqlStorage(connection, _options);
-
-            using (var storageConnection = (PostgreSqlConnection) storage.GetConnection())
-            {
-                Assert.Same(connection, storageConnection.Connection);
-            }
         }
 
         [Fact, CleanDatabase]
@@ -77,7 +56,7 @@ namespace Hangfire.PostgreSql.Tests
         public void GetConnection_ReturnsNonNullInstance()
         {
             var storage = CreateStorage();
-            using (var connection = (PostgreSqlConnection) storage.GetConnection())
+            using (var connection = (PostgreSqlConnection)storage.GetConnection())
             {
                 Assert.NotNull(connection);
             }

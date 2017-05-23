@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Data;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -21,14 +20,14 @@ namespace Hangfire.PostgreSql.Tests
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new PostgreSqlJobQueue(null, new PostgreSqlStorageOptions()));
 
-            Assert.Equal("connection", exception.ParamName);
+            Assert.Equal("connectionProvider", exception.ParamName);
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenOptionsValueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlJobQueue(new Mock<IDbConnection>().Object, null));
+                () => new PostgreSqlJobQueue(new Mock<IPostgreSqlConnectionProvider>().Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -38,7 +37,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             UseConnection(connection =>
             {
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 var exception = Assert.Throws<ArgumentNullException>(
                     () => queue.Dequeue(null, CreateTimingOutCancellationToken()));
@@ -52,7 +51,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             UseConnection(connection =>
             {
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
                 var token = CreateTimingOutCancellationToken();
 
                 queue.Enqueue("1", "1");
@@ -70,7 +69,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             UseConnection(connection =>
             {
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 var exception = Assert.Throws<ArgumentException>(
                     () => queue.Dequeue(new string[0], CreateTimingOutCancellationToken()));
@@ -86,7 +85,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 var cts = new CancellationTokenSource();
                 cts.Cancel();
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 Assert.Throws<OperationCanceledException>(
                     () => queue.Dequeue(DefaultQueues, cts.Token));
@@ -99,7 +98,7 @@ namespace Hangfire.PostgreSql.Tests
             UseConnection(connection =>
             {
                 var cts = new CancellationTokenSource(200);
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 Assert.Throws<OperationCanceledException>(
                     () => queue.Dequeue(DefaultQueues, cts.Token));
@@ -119,7 +118,7 @@ values (@jobId, @queue) returning ""id""";
                 var id = (int)connection.Query(
                     arrangeSql,
                     new { jobId = 1, queue = "default" }).Single().id;
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 // Act
                 var payload = (PostgreSqlFetchedJob)queue.Dequeue(
@@ -151,7 +150,7 @@ select i.""id"", @queue from i;
                 connection.Execute(
                     arrangeSql,
                     new { invocationData = "", arguments = "", queue = "default" });
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 // Act
                 var payload = queue.Dequeue(
@@ -194,7 +193,7 @@ select i.""id"", @queue, @fetchedAt from i;
                         invocationData = "",
                         arguments = ""
                     });
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 // Act
                 var payload = queue.Dequeue(
@@ -227,7 +226,7 @@ select i.""id"", @queue from i;
                         new {queue = "default", invocationData = "", arguments = ""},
                         new {queue = "default", invocationData = "", arguments = ""}
                     });
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 // Act
                 var payload = queue.Dequeue(
@@ -256,7 +255,7 @@ select i.""id"", @queue from i;
 ";
             UseConnection(connection =>
             {
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 connection.Execute(
                     arrangeSql,
@@ -293,7 +292,7 @@ select i.""id"", @queue from i;
                         new {queue = queueNames.Last(), invocationData = "", arguments = ""}
                     });
 
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 var queueFirst = (PostgreSqlFetchedJob)queue.Dequeue(
                     queueNames,
@@ -316,7 +315,7 @@ select i.""id"", @queue from i;
         {
             UseConnection(connection =>
             {
-                var queue = CreateJobQueue(connection);
+                var queue = CreateJobQueue();
 
                 queue.Enqueue("default", "1");
 
@@ -333,9 +332,10 @@ select i.""id"", @queue from i;
             return source.Token;
         }
 
-        private static PostgreSqlJobQueue CreateJobQueue(IDbConnection connection)
+        private static PostgreSqlJobQueue CreateJobQueue()
         {
-            return new PostgreSqlJobQueue(connection, new PostgreSqlStorageOptions()
+            var provider = ConnectionUtils.CreateConnection();
+            return new PostgreSqlJobQueue(provider, new PostgreSqlStorageOptions()
             {
                 SchemaName = GetSchemaName()
             });
@@ -343,9 +343,10 @@ select i.""id"", @queue from i;
 
         private static void UseConnection(Action<NpgsqlConnection> action)
         {
-            using (var connection = ConnectionUtils.CreateConnection())
+            var provider = ConnectionUtils.CreateConnection();
+            using (var connection = provider.AcquireConnection())
             {
-                action(connection);
+                action(connection.Connection);
             }
         }
 

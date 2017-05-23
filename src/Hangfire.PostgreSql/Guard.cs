@@ -48,18 +48,15 @@ namespace Hangfire.PostgreSql
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ThrowIfNullOrEmpty([NotNull] string @string, [NotNull] string argumentName)
         {
-            if (@string == null)
+            if (string.IsNullOrEmpty(@string))
                 throw new ArgumentNullException(argumentName);
-
-            if (String.IsNullOrEmpty(@string))
-                throw new ArgumentException("Parameter cannot be null or empty string", argumentName);
         }
 
         [ContractAnnotation("argument:null => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ThrowIfNullOrWhitespace([NotNull] string @string, [NotNull] string argumentName)
         {
-            if (String.IsNullOrWhiteSpace(@string))
+            if (string.IsNullOrWhiteSpace(@string))
                 throw new ArgumentException("Parameter cannot be null or whitespace string", argumentName);
         }
 

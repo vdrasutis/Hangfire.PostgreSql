@@ -36,7 +36,7 @@ namespace Hangfire.PostgreSql.Tests
             using (var connection = CreateConnection())
             {
                 var entryId = CreateExpirationEntry(connection, DateTime.UtcNow.AddMonths(-1));
-                var manager = CreateManager(connection);
+                var manager = CreateManager();
 
                 manager.Execute(_token);
 
@@ -50,7 +50,7 @@ namespace Hangfire.PostgreSql.Tests
             using (var connection = CreateConnection())
             {
                 var entryId = CreateExpirationEntry(connection, null);
-                var manager = CreateManager(connection);
+                var manager = CreateManager();
 
                 manager.Execute(_token);
 
@@ -64,7 +64,7 @@ namespace Hangfire.PostgreSql.Tests
             using (var connection = CreateConnection())
             {
                 var entryId = CreateExpirationEntry(connection, DateTime.Now.AddMonths(1));
-                var manager = CreateManager(connection);
+                var manager = CreateManager();
 
                 manager.Execute(_token);
 
@@ -81,9 +81,9 @@ namespace Hangfire.PostgreSql.Tests
                 string createSql = @"
 insert into """ + GetSchemaName() + @""".""counter"" (""key"", ""value"", ""expireat"") 
 values ('key', 1, @expireAt)";
-                connection.Execute(createSql, new {expireAt = DateTime.UtcNow.AddMonths(-1)});
+                connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(connection);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_token);
@@ -91,34 +91,6 @@ values ('key', 1, @expireAt)";
                 // Assert
                 Assert.Equal(0,
                     connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""counter""").Single());
-            }
-        }
-
-        [Fact, CleanDatabase]
-        public void Execute_Aggregates_CounterTable()
-        {
-            using (var connection = CreateConnection())
-            {
-                // Arrange
-                string createSql = $@"
-insert into ""{GetSchemaName()}"".""counter"" (""key"", ""value"") 
-values ('stats:succeeded', 1)";
-                for (int i = 0; i < 5; i++)
-                {
-                    connection.Execute(createSql);
-                }
-
-                var manager = CreateManager(connection);
-
-                // Act
-                manager.Execute(_token);
-
-                // Assert
-                Assert.Equal(1,
-                    connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""counter""").Single());
-                Assert.Equal(5,
-                    connection.Query<long>(@"select sum(value) from """ + GetSchemaName() + @""".""counter""")
-                        .Single());
             }
         }
 
@@ -131,9 +103,9 @@ values ('stats:succeeded', 1)";
                 string createSql = @"
 insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"", ""expireat"") 
 values ('', '', now() at time zone 'utc', @expireAt)";
-                connection.Execute(createSql, new {expireAt = DateTime.UtcNow.AddMonths(-1)});
+                connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(connection);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_token);
@@ -153,9 +125,9 @@ values ('', '', now() at time zone 'utc', @expireAt)";
                 string createSql = @"
 insert into """ + GetSchemaName() + @""".""list"" (""key"", ""expireat"") 
 values ('key', @expireAt)";
-                connection.Execute(createSql, new {expireAt = DateTime.UtcNow.AddMonths(-1)});
+                connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(connection);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_token);
@@ -175,9 +147,9 @@ values ('key', @expireAt)";
                 string createSql = @"
 insert into """ + GetSchemaName() + @""".""set"" (""key"", ""score"", ""value"", ""expireat"") 
 values ('key', 0, '', @expireAt)";
-                connection.Execute(createSql, new {expireAt = DateTime.UtcNow.AddMonths(-1)});
+                connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(connection);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_token);
@@ -197,9 +169,9 @@ values ('key', 0, '', @expireAt)";
                 string createSql = @"
 insert into """ + GetSchemaName() + @""".""hash"" (""key"", ""field"", ""value"", ""expireat"") 
 values ('key', 'field', '', @expireAt)";
-                connection.Execute(createSql, new {expireAt = DateTime.UtcNow.AddMonths(-1)});
+                connection.Execute(createSql, new { expireAt = DateTime.UtcNow.AddMonths(-1) });
 
-                var manager = CreateManager(connection);
+                var manager = CreateManager();
 
                 // Act
                 manager.Execute(_token);
@@ -223,10 +195,10 @@ values ('key', 1, now() at time zone 'utc' - interval '{0} seconds') returning "
             string insertSql = expireAt == null
                 ? insertSqlNull
                 : string.Format(insertSqlValue,
-                    ((long) (DateTime.UtcNow - expireAt.Value).TotalSeconds).ToString(CultureInfo.InvariantCulture));
+                    ((long)(DateTime.UtcNow - expireAt.Value).TotalSeconds).ToString(CultureInfo.InvariantCulture));
 
             var id = connection.Query(insertSql).Single();
-            var recordId = (int) id.id;
+            var recordId = (int)id.id;
             return recordId;
         }
 
@@ -234,14 +206,14 @@ values ('key', 1, now() at time zone 'utc' - interval '{0} seconds') returning "
         {
             var count = connection.Query<long>(
                     @"select count(*) from """ + GetSchemaName() + @""".""counter"" where ""id"" = @id",
-                    new {id = entryId})
+                    new { id = entryId })
                 .Single();
             return count == 0;
         }
 
         private NpgsqlConnection CreateConnection()
         {
-            return ConnectionUtils.CreateConnection();
+            return ConnectionUtils.CreateNpgConnection();
         }
 
         private static string GetSchemaName()
@@ -249,11 +221,10 @@ values ('key', 1, now() at time zone 'utc' - interval '{0} seconds') returning "
             return ConnectionUtils.GetSchemaName();
         }
 
-
-        private ExpirationManager CreateManager(NpgsqlConnection connection)
+        private ExpirationManager CreateManager()
         {
-            var storage = new PostgreSqlStorage(connection, _options);
-            return new ExpirationManager(storage, _options, TimeSpan.Zero);
+            var connectionProvider = ConnectionUtils.CreateConnection();
+            return new ExpirationManager(connectionProvider, _options, TimeSpan.Zero);
         }
     }
 }

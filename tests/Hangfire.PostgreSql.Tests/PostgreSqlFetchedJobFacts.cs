@@ -5,6 +5,7 @@ using System.Linq;
 using Dapper;
 using Hangfire.PostgreSql.Tests.Utils;
 using Moq;
+using Npgsql;
 using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
@@ -14,12 +15,12 @@ namespace Hangfire.PostgreSql.Tests
         private const string JobId = "id";
         private const string Queue = "queue";
 
-        private readonly Mock<IDbConnection> _connection;
+        private readonly Mock<IPostgreSqlConnectionProvider> _connection;
         private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlFetchedJobFacts()
         {
-            _connection = new Mock<IDbConnection>();
+            _connection = new Mock<IPostgreSqlConnectionProvider>();
             _options = new PostgreSqlStorageOptions()
             {
                 SchemaName = GetSchemaName()
@@ -32,7 +33,7 @@ namespace Hangfire.PostgreSql.Tests
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new PostgreSqlFetchedJob(null, _options, 1, JobId, Queue));
 
-            Assert.Equal("connection", exception.ParamName);
+            Assert.Equal("connectionProvider", exception.ParamName);
         }
 
         [Fact]
@@ -75,11 +76,11 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void RemoveFromQueue_ReallyDeletesTheJobFromTheQueue()
         {
-            UseConnection(connection =>
+            UseConnection((provider, connection) =>
             {
                 // Arrange
                 var id = CreateJobQueueRecord(connection, "1", "default");
-                var processingJob = new PostgreSqlFetchedJob(connection, _options, id, "1", "default");
+                var processingJob = new PostgreSqlFetchedJob(provider, _options, id, "1", "default");
 
                 // Act
                 processingJob.RemoveFromQueue();
@@ -94,14 +95,14 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void RemoveFromQueue_DoesNotDelete_UnrelatedJobs()
         {
-            UseConnection(connection =>
+            UseConnection((provider, connection) =>
             {
                 // Arrange
                 CreateJobQueueRecord(connection, "1", "default");
                 CreateJobQueueRecord(connection, "1", "critical");
                 CreateJobQueueRecord(connection, "2", "default");
 
-                var fetchedJob = new PostgreSqlFetchedJob(connection, _options, 999, "1", "default");
+                var fetchedJob = new PostgreSqlFetchedJob(provider, _options, 999, "1", "default");
 
                 // Act
                 fetchedJob.RemoveFromQueue();
@@ -116,11 +117,11 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void Requeue_SetsFetchedAtValueToNull()
         {
-            UseConnection(connection =>
+            UseConnection((provider, connection) =>
             {
                 // Arrange
                 var id = CreateJobQueueRecord(connection, "1", "default");
-                var processingJob = new PostgreSqlFetchedJob(connection, _options, id, "1", "default");
+                var processingJob = new PostgreSqlFetchedJob(provider, _options, id, "1", "default");
 
                 // Act
                 processingJob.Requeue();
@@ -134,11 +135,11 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void Dispose_SetsFetchedAtValueToNull_IfThereWereNoCallsToComplete()
         {
-            UseConnection(connection =>
+            UseConnection((provider, connection) =>
             {
                 // Arrange
                 var id = CreateJobQueueRecord(connection, "1", "default");
-                var processingJob = new PostgreSqlFetchedJob(connection, _options, id, "1", "default");
+                var processingJob = new PostgreSqlFetchedJob(provider, _options, id, "1", "default");
 
                 // Act
                 processingJob.Dispose();
@@ -158,16 +159,18 @@ values (@id, @queue, now() at time zone 'utc') returning ""id""";
             return
                 (int)
                 connection.Query(arrangeSql,
-                        new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue})
+                        new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue })
                     .Single()
                     .id;
         }
 
-        private static void UseConnection(Action<IDbConnection> action)
+        private static void UseConnection(Action<IPostgreSqlConnectionProvider, NpgsqlConnection> action)
         {
-            using (var connection = ConnectionUtils.CreateConnection())
+            var connectionProvider = ConnectionUtils.CreateConnection();
+
+            using (var connectionHolder = connectionProvider.AcquireConnection())
             {
-                action(connection);
+                action(connectionProvider, connectionHolder.Connection);
             }
         }
 

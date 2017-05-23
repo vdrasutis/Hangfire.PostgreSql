@@ -1,5 +1,4 @@
 using System;
-using System.Data;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -10,15 +9,18 @@ using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    public class PostgreSqlJobQueue : IPersistentJobQueue
+    internal class PostgreSqlJobQueue : IPersistentJobQueue
     {
+        private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
-        private readonly IDbConnection _connection;
 
-        public PostgreSqlJobQueue(IDbConnection connection, PostgreSqlStorageOptions options)
+        public PostgreSqlJobQueue(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
         {
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+            Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
+            Guard.ThrowIfNull(options, nameof(options));
+
+            _connectionProvider = connectionProvider;
+            _options = options;
         }
 
         [NotNull]
@@ -27,7 +29,7 @@ namespace Hangfire.PostgreSql
             if (queues == null) throw new ArgumentNullException(nameof(queues));
             if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
 
-            long timeoutSeconds = (long) _options.InvisibilityTimeout.Negate().TotalSeconds;
+            long timeoutSeconds = (long)_options.InvisibilityTimeout.Negate().TotalSeconds;
             FetchedJob fetchedJob;
 
             var fetchJobSqlTemplate = $@"
@@ -58,12 +60,15 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
 
                 Utils.Utils.TryExecute(() =>
                     {
-                        var jobToFetch = _connection.Query<FetchedJob>(
-                                fetchJobSql,
-                                new {queues = queues.ToList()})
-                            .SingleOrDefault();
+                        using (var connectionHolder = _connectionProvider.AcquireConnection())
+                        {
+                            var jobToFetch = connectionHolder.Connection.Query<FetchedJob>(
+                                    fetchJobSql,
+                                    new { queues = queues.ToList() })
+                                .SingleOrDefault();
 
-                        return jobToFetch;
+                            return jobToFetch;
+                        }
                     },
                     out fetchedJob,
                     ex =>
@@ -86,7 +91,7 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
             } while (fetchedJob == null);
 
             return new PostgreSqlFetchedJob(
-                _connection,
+                _connectionProvider,
                 _options,
                 fetchedJob.Id,
                 fetchedJob.JobId.ToString(CultureInfo.InvariantCulture),
@@ -95,13 +100,16 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
 
         public void Enqueue(string queue, string jobId)
         {
-            string enqueueJobSql = $@"
-INSERT INTO ""{_options.SchemaName}"".""jobqueue"" (""jobid"", ""queue"") 
+            string query = $@"
+INSERT INTO ""{_options.SchemaName}"".jobqueue (jobid, queue) 
 VALUES (@jobId, @queue);
 ";
-
-            _connection.Execute(enqueueJobSql,
-                new {jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue});
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                // ReSharper disable once RedundantAnonymousTypePropertyName
+                var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };
+                connectionHolder.Connection.Execute(query, parameters);
+            }
         }
 
         [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]

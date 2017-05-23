@@ -1,20 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Dapper;
 
+// ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlJobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
     {
-        private readonly IDbConnection _connection;
+        private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
 
-        public PostgreSqlJobQueueMonitoringApi(IDbConnection connection, PostgreSqlStorageOptions options)
+        public PostgreSqlJobQueueMonitoringApi(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
         {
-            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
+            Guard.ThrowIfNull(options, nameof(options));
+
+            _connectionProvider = connectionProvider;
+            _options = options;
         }
 
         public IEnumerable<string> GetQueues()
@@ -23,7 +25,10 @@ namespace Hangfire.PostgreSql
 SELECT DISTINCT ""queue"" 
 FROM ""{_options.SchemaName}"".""jobqueue"";
 ";
-            return _connection.Query(sqlQuery).Select(x => (string) x.queue).ToList();
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                return connectionHolder.Connection.Query(sqlQuery).Select(x => (string)x.queue).ToList();
+            }
         }
 
         public IEnumerable<int> GetEnqueuedJobIds(string queue, int @from, int perPage)
@@ -43,10 +48,13 @@ AND j.""id"" IS NOT NULL
 LIMIT @count OFFSET @start;
 ", fetched ? "IS NOT NULL" : "IS NULL");
 
-            return _connection.Query<int>(
-                    sqlQuery,
-                    new {queue = queue, start = @from, count = perPage})
-                .ToList();
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                return connectionHolder.Connection.Query<int>(
+                        sqlQuery,
+                        new { queue = queue, start = @from, count = perPage })
+                    .ToList();
+            }
         }
 
         public IEnumerable<int> GetFetchedJobIds(string queue, int @from, int perPage)
@@ -70,14 +78,16 @@ SELECT (
         AND ""queue"" = @queue
     ) ""FetchedCount"";
 ";
-
-            var result = _connection.Query(sqlQuery, new {queue = queue}).Single();
-
-            return new EnqueuedAndFetchedCountDto
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                EnqueuedCount = result.EnqueuedCount,
-                FetchedCount = result.FetchedCount
-            };
+                var result = connectionHolder.Connection.Query(sqlQuery, new { queue = queue }).Single();
+
+                return new EnqueuedAndFetchedCountDto
+                {
+                    EnqueuedCount = result.EnqueuedCount,
+                    FetchedCount = result.FetchedCount
+                };
+            }
         }
     }
 }

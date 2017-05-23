@@ -14,16 +14,16 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlMonitoringApi : IMonitoringApi
     {
-        private readonly NpgsqlConnection _connection;
+        private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
         private readonly PersistentJobQueueProviderCollection _queueProviders;
 
         public PostgreSqlMonitoringApi(
-            NpgsqlConnection connection,
+            IPostgreSqlConnectionProvider connection,
             PostgreSqlStorageOptions options,
             PersistentJobQueueProviderCollection queueProviders)
         {
-            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+            _connectionProvider = connection ?? throw new ArgumentNullException(nameof(connection));
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _queueProviders = queueProviders ?? throw new ArgumentNullException(nameof(queueProviders));
         }
@@ -191,7 +191,7 @@ namespace Hangfire.PostgreSql
             return UseConnection<IList<QueueWithTopEnqueuedJobsDto>>(connection =>
             {
                 var tuples = _queueProviders
-                    .Select(x => x.GetJobQueueMonitoringApi(connection))
+                    .Select(x => x.GetJobQueueMonitoringApi(_connectionProvider))
                     .SelectMany(x => x.GetQueues(), (monitoring, queue) => new { Monitoring = monitoring, Queue = queue })
                     .OrderBy(x => x.Queue)
                     .ToArray();
@@ -356,7 +356,7 @@ WHERE ""key"" = 'recurring-jobs';
                 }
 
                 stats.Queues = _queueProviders
-                    .SelectMany(x => x.GetJobQueueMonitoringApi(connection).GetQueues())
+                    .SelectMany(x => x.GetJobQueueMonitoringApi(_connectionProvider).GetQueues())
                     .Count();
 
                 return stats;
@@ -417,14 +417,17 @@ GROUP BY ""key"";
             string queueName)
         {
             var provider = _queueProviders.GetProvider(queueName);
-            var monitoringApi = provider.GetJobQueueMonitoringApi(connection);
+            var monitoringApi = provider.GetJobQueueMonitoringApi(_connectionProvider);
 
             return monitoringApi;
         }
 
         private T UseConnection<T>(Func<NpgsqlConnection, T> action)
         {
-            return action(_connection);
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                return action(connectionHolder.Connection);
+            }
         }
 
         private JobList<EnqueuedJobDto> EnqueuedJobs(NpgsqlConnection connection, IEnumerable<int> jobIds)

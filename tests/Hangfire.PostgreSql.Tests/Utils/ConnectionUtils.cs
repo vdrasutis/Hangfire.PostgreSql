@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Threading;
 using Npgsql;
 
 namespace Hangfire.PostgreSql.Tests.Utils
 {
-    public static class ConnectionUtils
+    internal static class ConnectionUtils
     {
         private const string DatabaseVariable = "Hangfire_PostgreSql_DatabaseName";
         private const string SchemaVariable = "Hangfire_PostgreSql_SchemaName";
@@ -17,6 +18,11 @@ namespace Hangfire.PostgreSql.Tests.Utils
         private const string DefaultConnectionStringTemplate =
             @"Server=127.0.0.1;Port=5432;Database=postgres;User Id=postgres;Password=password;";
 
+        private static readonly Lazy<IPostgreSqlConnectionProvider> LazyProvider
+            = new Lazy<IPostgreSqlConnectionProvider>(
+                () => new PostgreSqlConnectionProvider(GetConnectionString(),
+                    new PostgreSqlStorageOptions()), LazyThreadSafetyMode.ExecutionAndPublication);
+
         public static string GetDatabaseName()
         {
             return Environment.GetEnvironmentVariable(DatabaseVariable) ?? DefaultDatabaseName;
@@ -27,15 +33,14 @@ namespace Hangfire.PostgreSql.Tests.Utils
             return Environment.GetEnvironmentVariable(SchemaVariable) ?? DefaultSchemaName;
         }
 
-
         public static string GetMasterConnectionString()
         {
-            return String.Format(GetConnectionStringTemplate(), MasterDatabaseName);
+            return string.Format(GetConnectionStringTemplate(), MasterDatabaseName);
         }
 
         public static string GetConnectionString()
         {
-            return String.Format(GetConnectionStringTemplate(), GetDatabaseName());
+            return string.Format(GetConnectionStringTemplate(), GetDatabaseName());
         }
 
         private static string GetConnectionStringTemplate()
@@ -44,16 +49,23 @@ namespace Hangfire.PostgreSql.Tests.Utils
                    ?? DefaultConnectionStringTemplate;
         }
 
-        public static NpgsqlConnection CreateConnection()
+        public static IPostgreSqlConnectionProvider CreateConnection()
         {
-            NpgsqlConnectionStringBuilder csb = new NpgsqlConnectionStringBuilder(GetConnectionString())
-            {
-                Enlist = false
-            };
-            var connection = new NpgsqlConnection(csb.ToString());
-            connection.Open();
+            return LazyProvider.Value;
+        }
 
-            return connection;
+        public static NpgsqlConnection CreateNpgConnection()
+        {
+            return new NpgsqlConnection(GetConnectionString());
+        }
+        
+        // TODO unify
+        public static void UseConnection(Action<IPostgreSqlConnectionProvider, NpgsqlConnection> action)
+        {
+            using (var connection = LazyProvider.Value.AcquireConnection())
+            {
+                action(LazyProvider.Value, connection.Connection);
+            }
         }
     }
 }

@@ -1,31 +1,33 @@
-﻿using System;
-using System.Data;
-using Dapper;
+﻿using Dapper;
 using Hangfire.Storage;
 
 namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlFetchedJob : IFetchedJob
     {
-        private readonly IDbConnection _connection;
+        private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
         private bool _disposed;
         private bool _removedFromQueue;
         private bool _requeued;
 
         public PostgreSqlFetchedJob(
-            IDbConnection connection,
+            IPostgreSqlConnectionProvider connectionProvider,
             PostgreSqlStorageOptions options,
             int id,
             string jobId,
             string queue)
         {
-            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
+            Guard.ThrowIfNull(options, nameof(options));
+            Guard.ThrowIfNull(jobId, nameof(jobId));
+            Guard.ThrowIfNull(queue, nameof(queue));
 
+            _connectionProvider = connectionProvider;
+            _options = options;
             Id = id;
-            JobId = jobId ?? throw new ArgumentNullException(nameof(jobId));
-            Queue = queue ?? throw new ArgumentNullException(nameof(queue));
+            JobId = jobId;
+            Queue = queue;
         }
 
         public int Id { get; }
@@ -35,11 +37,14 @@ namespace Hangfire.PostgreSql
         public void RemoveFromQueue()
         {
             var sql = $@"
-DELETE FROM ""{_options.SchemaName}"".""jobqueue"" 
-WHERE ""id"" = @id;
+DELETE FROM ""{_options.SchemaName}"".jobqueue
+WHERE id = @id;
 ";
-            _connection.Execute(sql, new { id = Id });
-            _removedFromQueue = true;
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                connectionHolder.Connection.Execute(sql, new { id = Id });
+                _removedFromQueue = true;
+            }
         }
 
         public void Requeue()
@@ -49,8 +54,11 @@ UPDATE ""{_options.SchemaName}"".""jobqueue""
 SET ""fetchedat"" = NULL 
 WHERE ""id"" = @id;
 ";
-            _connection.Execute(sql, new { id = Id });
-            _requeued = true;
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                connectionHolder.Connection.Execute(sql, new { id = Id });
+                _requeued = true;
+            }
         }
 
         public void Dispose()

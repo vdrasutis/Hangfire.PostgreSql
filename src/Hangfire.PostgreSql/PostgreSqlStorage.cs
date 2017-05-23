@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Threading;
 using Hangfire.Logging;
 using Hangfire.Server;
 using Hangfire.Storage;
@@ -11,10 +9,22 @@ namespace Hangfire.PostgreSql
 {
     public class PostgreSqlStorage : JobStorage
     {
-        private readonly Lazy<NpgsqlConnection> _lazyConnection;
         private readonly PostgreSqlStorageOptions _options;
-        private readonly string _connectionString;
-        private string _storageInfo;
+        private readonly PostgreSqlConnectionProvider _postgreSqlConnectionProvider;
+        private readonly string _storageInfo;
+
+        /// <summary>
+        /// Initializes PostgreSqlStorage with default PostgreSqlStorageOptions and either the provided connection
+        /// string or the connection string with provided name pulled from the application config file.
+        /// </summary>
+        /// <param name="connectionString">A Postgres connection string</param>
+        /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> argument is null.</exception>
+        /// <exception cref="ArgumentException"><paramref name="connectionString"/> argument is a valid 
+        /// Postgres connection string </exception>
+        public PostgreSqlStorage(string connectionString)
+            : this(connectionString, new PostgreSqlStorageOptions())
+        {
+        }
 
         /// <summary>
         /// Initializes PostgreSqlStorage from the provided PostgreSqlStorageOptions and either the provided connection
@@ -32,89 +42,34 @@ namespace Hangfire.PostgreSql
             Guard.ThrowIfNull(options, nameof(options));
             Guard.ThrowIfConnectionStringIsInvalid(connectionString);
 
-            _connectionString = connectionString;
             _options = options;
-            _lazyConnection = new Lazy<NpgsqlConnection>(() =>
-            {
-                var connection = new NpgsqlConnection(_connectionString);
-                connection.Open();
-                return connection;
-            }, LazyThreadSafetyMode.ExecutionAndPublication);
-            Initialize();
-        }
+            _postgreSqlConnectionProvider = new PostgreSqlConnectionProvider(connectionString, _options);
 
-        /// <summary>
-        /// Initializes PostgreSqlStorage with default PostgreSqlStorageOptions and either the provided connection
-        /// string or the connection string with provided name pulled from the application config file.
-        /// </summary>
-        /// <param name="connectionString">A Postgres connection string</param>
-        /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> argument is null.</exception>
-        /// <exception cref="ArgumentException"><paramref name="connectionString"/> argument is a valid 
-        /// Postgres connection string </exception>
-        public PostgreSqlStorage(string connectionString)
-            : this(connectionString, new PostgreSqlStorageOptions())
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="PostgreSqlStorage"/> class with
-        /// explicit instance of the <see cref="NpgsqlConnection"/> class that will be used
-        /// to query the data.
-        /// </summary>
-        /// <param name="existingConnection">Existing connection</param>
-        /// <param name="options">PostgreSqlStorageOptions</param>
-        public PostgreSqlStorage(NpgsqlConnection existingConnection, PostgreSqlStorageOptions options)
-        {
-            Guard.ThrowIfNull(existingConnection, nameof(existingConnection));
-            Guard.ThrowIfNull(options, nameof(options));
-            Guard.ThrowIfConnectionContainsEnlist(existingConnection);
-
-            _connectionString = existingConnection.ConnectionString;
-            _lazyConnection = new Lazy<NpgsqlConnection>(() =>
-            {
-                if (existingConnection.State != ConnectionState.Open)
-                    existingConnection.Open();
-                return existingConnection;
-            }, LazyThreadSafetyMode.ExecutionAndPublication);
-            _options = options;
-            Initialize();
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="PostgreSqlStorage"/> class with
-        /// explicit instance of the <see cref="NpgsqlConnection"/> class that will be used
-        /// to query the data.
-        /// </summary>
-        /// <param name="existingConnection">Existing connection</param>
-        public PostgreSqlStorage(NpgsqlConnection existingConnection)
-            : this(existingConnection, new PostgreSqlStorageOptions())
-        {
-        }
-
-        private void Initialize()
-        {
-            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+            var builder = new NpgsqlConnectionStringBuilder(connectionString);
             _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {_options.SchemaName}";
+            QueueProviders = new PersistentJobQueueProviderCollection(new PostgreSqlJobQueueProvider(_postgreSqlConnectionProvider, _options));
 
             if (_options.PrepareSchemaIfNecessary)
             {
-                PostgreSqlObjectsInstaller.Install(_lazyConnection.Value, _options.SchemaName);
+                _postgreSqlConnectionProvider.Execute(
+                    connection => PostgreSqlObjectsInstaller.Install(connection, _options.SchemaName));
             }
-
-            var defaultQueueProvider = new PostgreSqlJobQueueProvider(_options);
-            QueueProviders = new PersistentJobQueueProviderCollection(defaultQueueProvider);
         }
 
-        public PersistentJobQueueProviderCollection QueueProviders { get; private set; }
+        internal PersistentJobQueueProviderCollection QueueProviders { get; }
 
         public override IMonitoringApi GetMonitoringApi()
-            => new PostgreSqlMonitoringApi(_lazyConnection.Value, _options, QueueProviders);
+            => new PostgreSqlMonitoringApi(_postgreSqlConnectionProvider, _options, QueueProviders);
 
         public override IStorageConnection GetConnection()
-            => new PostgreSqlConnection(_lazyConnection.Value, QueueProviders, _options);
+            => new PostgreSqlConnection(_postgreSqlConnectionProvider, QueueProviders, _options);
 
         public override IEnumerable<IServerComponent> GetComponents()
-            => new[] { new ExpirationManager(this, _options) };
+            => new IServerComponent[]
+            {
+                new ExpirationManager(_postgreSqlConnectionProvider, _options),
+                new CountersAggregationManager(_postgreSqlConnectionProvider, _options)
+            };
 
         public override void WriteOptionsToLog(ILog logger)
         {

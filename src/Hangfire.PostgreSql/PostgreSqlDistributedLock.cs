@@ -3,134 +3,152 @@ using System.Data;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Dapper;
+using Npgsql;
 
+// ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    public sealed class PostgreSqlDistributedLock : IDisposable
+    internal class PostgreSqlDistributedLock : IDisposable
     {
         private readonly string _resource;
-        private readonly IDbConnection _connection;
+        private readonly TimeSpan _timeout;
+        private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
         private bool _completed;
 
-        public PostgreSqlDistributedLock(string resource, TimeSpan timeout, IDbConnection connection,
+        public PostgreSqlDistributedLock(string resource,
+            TimeSpan timeout,
+            IPostgreSqlConnectionProvider connectionProvider,
             PostgreSqlStorageOptions options)
         {
-            if (string.IsNullOrEmpty(resource)) throw new ArgumentNullException(nameof(resource));
-            _resource = resource;
-            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            Guard.ThrowIfNullOrEmpty(resource, nameof(resource));
+            Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
+            Guard.ThrowIfNull(options, nameof(options));
 
-            PostgreSqlDistributedLock_Init_Transaction(resource, timeout, connection, options);
+            _resource = resource;
+            _timeout = timeout;
+            _connectionProvider = connectionProvider;
+            _options = options;
+
+            Initialize();
         }
 
-        private static void PostgreSqlDistributedLock_Init_Transaction(string resource, TimeSpan timeout,
-            IDbConnection connection, PostgreSqlStorageOptions options)
+        private void Initialize()
         {
-            var lockAcquiringTime = Stopwatch.StartNew();
-
-            bool tryAcquireLock = true;
-
-            while (tryAcquireLock)
+            var lockAcquiringWatch = Stopwatch.StartNew();
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                TryRemoveDeadlock(resource, connection, options);
-
-                try
+                var connection = connectionHolder.Connection;
+                bool tryAcquireLock = true;
+                while (tryAcquireLock)
                 {
-                    int rowsAffected = -1;
-                    using (var trx = connection.BeginTransaction(IsolationLevel.RepeatableRead))
+                    TryRemoveTimeoutedLock(connection);
+
+                    try
                     {
-                        rowsAffected = connection.Execute($@"
-INSERT INTO ""{options.SchemaName}"".""lock""(""resource"", ""acquired"") 
+                        int rowsAffected;
+                        using (var transaction = connection.BeginTransaction(IsolationLevel.RepeatableRead))
+                        {
+                            var sql = $@"
+INSERT INTO ""{_options.SchemaName}"".lock(resource, acquired) 
 SELECT @resource, @acquired
 WHERE NOT EXISTS (
-    SELECT 1 FROM ""{options.SchemaName}"".""lock"" 
-    WHERE ""resource"" = @resource
-);
-",
-                            new
+    SELECT 1 FROM ""{_options.SchemaName}"".lock
+    WHERE resource = @resource
+);";
+                            var parameters = new
                             {
-                                resource = resource,
+                                resource = _resource,
                                 acquired = DateTime.UtcNow
-                            }, trx);
-                        trx.Commit();
+                            };
+                            rowsAffected = connection.Execute(sql, parameters, transaction);
+                            transaction.Commit();
+                        }
+                        if (rowsAffected > 0) return;
                     }
-                    if (rowsAffected > 0) return;
-                }
-                catch
-                {
-                }
+                    catch (Exception e)
+                    {
+                        throw new PostgreSqlDistributedLockException(
+                            $"Could not place a lock on the resource \'{_resource}\'. See inner exception", e);
+                    }
 
-                if (lockAcquiringTime.ElapsedMilliseconds > timeout.TotalMilliseconds)
-                {
-                    tryAcquireLock = false;
-                }
-                else
-                {
-                    int sleepDuration = (int) (timeout.TotalMilliseconds - lockAcquiringTime.ElapsedMilliseconds);
-                    if (sleepDuration > 1000) sleepDuration = 1000;
-                    if (sleepDuration > 0)
-                    {
-                        Task.Delay(sleepDuration).Wait();
-                    }
-                    else
-                    {
-                        tryAcquireLock = false;
-                    }
+                    tryAcquireLock = CheckAndWaitForNextTry(lockAcquiringWatch.ElapsedMilliseconds);
                 }
             }
 
             throw new PostgreSqlDistributedLockException(
-                $"Could not place a lock on the resource \'{resource}\': Lock timeout.");
+                $"Could not place a lock on the resource \'{_resource}\': Lock timeout.");
         }
 
-        private static void TryRemoveDeadlock(string resource, IDbConnection connection,
-            PostgreSqlStorageOptions options)
+        private bool CheckAndWaitForNextTry(long elapsedMilliseconds)
+        {
+            const int maxSleepTimeMilliseconds = 500;
+            var tryAcquireLock = true;
+            var timeoutTotalMilliseconds = _timeout.TotalMilliseconds;
+            if (elapsedMilliseconds > timeoutTotalMilliseconds)
+            {
+                tryAcquireLock = false;
+            }
+            else
+            {
+                var sleepDuration = timeoutTotalMilliseconds - elapsedMilliseconds;
+                if (sleepDuration > maxSleepTimeMilliseconds) sleepDuration = maxSleepTimeMilliseconds;
+                if (sleepDuration > 0)
+                {
+                    Task.Delay((int)sleepDuration).Wait();
+                }
+                else
+                {
+                    tryAcquireLock = false;
+                }
+            }
+            return tryAcquireLock;
+        }
+
+        private void TryRemoveTimeoutedLock(NpgsqlConnection connection)
         {
             try
             {
                 using (var transaction = connection.BeginTransaction(IsolationLevel.RepeatableRead))
                 {
-                    int affected = -1;
+                    var query = $@"
+DELETE FROM ""{_options.SchemaName}"".lock
+WHERE resource = @resource
+AND acquired < @timeout";
 
-                    affected = connection.Execute(
-                        $@"DELETE FROM ""{
-                                options.SchemaName
-                            }"".""lock"" WHERE ""resource"" = @resource AND ""acquired"" < @timeout",
-                        new
-                        {
-                            resource = resource,
-                            timeout = DateTime.UtcNow - options.DistributedLockTimeout
-                        });
-
+                    var parameters = new
+                    {
+                        resource = _resource,
+                        timeout = DateTime.UtcNow - _options.DistributedLockTimeout
+                    };
+                    connection.Execute(query, parameters, transaction);
                     transaction.Commit();
                 }
             }
-            catch
+            catch (Exception e)
             {
+                throw new PostgreSqlDistributedLockException(
+                    $"Could not remove timeouted lock on the resource \'{_resource}\'. See inner exception", e);
             }
         }
 
         public void Dispose()
         {
-            if (_completed) return;
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                if (_completed) return;
+                _completed = true;
 
-            _completed = true;
-
-            int rowsAffected = _connection.Execute($@"
+                var query = $@"
 DELETE FROM ""{_options.SchemaName}"".""lock"" 
 WHERE ""resource"" = @resource;
-",
-                new
+";
+                int rowsAffected = connectionHolder.Connection.Execute(query, new { resource = _resource });
+                if (rowsAffected <= 0)
                 {
-                    resource = _resource
-                });
-
-
-            if (rowsAffected <= 0)
-            {
-                throw new PostgreSqlDistributedLockException(
-                    $"Could not release a lock on the resource '{_resource}'. Lock does not exists.");
+                    throw new PostgreSqlDistributedLockException(
+                        $"Could not release a lock on the resource '{_resource}'. Lock does not exists.");
+                }
             }
         }
     }

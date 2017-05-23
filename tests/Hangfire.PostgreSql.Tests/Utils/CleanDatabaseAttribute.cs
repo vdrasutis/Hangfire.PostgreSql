@@ -69,9 +69,10 @@ namespace Hangfire.PostgreSql.Tests.Utils
 
         private static void CleanTables()
         {
-            using (var connection = ConnectionUtils.CreateConnection())
+            var provider = ConnectionUtils.CreateConnection();
+            using (var connection = provider.AcquireConnection())
             {
-                PostgreSqlTestObjectsInitializer.CleanTables(connection);
+                PostgreSqlTestObjectsInitializer.CleanTables(connection.Connection);
             }
         }
     }

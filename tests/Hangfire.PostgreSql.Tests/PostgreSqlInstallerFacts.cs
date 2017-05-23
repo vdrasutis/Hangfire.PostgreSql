@@ -13,7 +13,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             var ex = Record.Exception(() =>
             {
-                UseConnection(connection =>
+                UseConnection((provider, connection) =>
                 {
                     string schemaName = "hangfire_tests_" + Guid.NewGuid().ToString().Replace("-", "_").ToLower();
 
@@ -26,11 +26,12 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Null(ex);
         }
 
-        private static void UseConnection(Action<NpgsqlConnection> action)
+        private static void UseConnection(Action<IPostgreSqlConnectionProvider, NpgsqlConnection> action)
         {
-            using (var connection = ConnectionUtils.CreateConnection())
+            var provider = ConnectionUtils.CreateConnection();
+            using (var connection = provider.AcquireConnection())
             {
-                action(connection);
+                action(provider, connection.Connection);
             }
         }
     }

@@ -20,7 +20,7 @@ namespace Hangfire.PostgreSql.Tests
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions();
 
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlDistributedLock("", _timeout, new Mock<IDbConnection>().Object, options));
+                () => new PostgreSqlDistributedLock("", _timeout, new Mock<IPostgreSqlConnectionProvider>().Object, options));
 
             Assert.Equal("resource", exception.ParamName);
         }
@@ -33,14 +33,14 @@ namespace Hangfire.PostgreSql.Tests
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new PostgreSqlDistributedLock("hello", _timeout, null, options));
 
-            Assert.Equal("connection", exception.ParamName);
+            Assert.Equal("connectionProvider", exception.ParamName);
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenOptionsIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlDistributedLock("hi", _timeout, new Mock<IDbConnection>().Object, null));
+                () => new PostgreSqlDistributedLock("hi", _timeout, new Mock<IPostgreSqlConnectionProvider>().Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -54,10 +54,10 @@ namespace Hangfire.PostgreSql.Tests
                 SchemaName = GetSchemaName()
             };
 
-            UseConnection(connection =>
+            UseConnection((provider, connection) =>
             {
                 // ReSharper disable once UnusedVariable
-                var distributedLock = new PostgreSqlDistributedLock("hello", _timeout, connection, options);
+                var distributedLock = new PostgreSqlDistributedLock("hello", _timeout, provider, options);
 
                 var lockCount = connection.Query<long>(
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
@@ -77,7 +77,7 @@ namespace Hangfire.PostgreSql.Tests
                 DistributedLockTimeout = TimeSpan.FromSeconds(10)
             };
 
-            UseConnection(connection =>
+            UseConnection((provider, connection) =>
             {
                 // Arrange
                 var timeout = TimeSpan.FromSeconds(15);
@@ -86,7 +86,7 @@ namespace Hangfire.PostgreSql.Tests
                     $@"INSERT INTO ""{GetSchemaName()}"".""lock"" VALUES ('{resourceName}', 0, '{DateTime.UtcNow}')");
 
                 // Act
-                var distributedLock = new PostgreSqlDistributedLock(resourceName, timeout, connection, options);
+                var distributedLock = new PostgreSqlDistributedLock(resourceName, timeout, provider, options);
 
                 // Assert
                 Assert.True(distributedLock != null);
@@ -105,9 +105,9 @@ namespace Hangfire.PostgreSql.Tests
             var lockAcquired = new ManualResetEventSlim(false);
 
             var thread = new Thread(
-                () => UseConnection(connection1 =>
+                () => UseConnection((provider, connection) =>
                 {
-                    using (new PostgreSqlDistributedLock("exclusive", _timeout, connection1, options))
+                    using (new PostgreSqlDistributedLock("exclusive", _timeout, provider, options))
                     {
                         lockAcquired.Set();
                         releaseLock.Wait();
@@ -117,9 +117,9 @@ namespace Hangfire.PostgreSql.Tests
 
             lockAcquired.Wait();
 
-            UseConnection(connection2 =>
+            UseConnection((provider, connection) =>
                 Assert.Throws<PostgreSqlDistributedLockException>(
-                    () => new PostgreSqlDistributedLock("exclusive", _timeout, connection2, options)));
+                    () => new PostgreSqlDistributedLock("exclusive", _timeout, provider, options)));
 
             releaseLock.Set();
             thread.Join();
@@ -133,9 +133,9 @@ namespace Hangfire.PostgreSql.Tests
                 SchemaName = GetSchemaName()
             };
 
-            UseConnection(connection =>
+            UseConnection((provider, connection) =>
             {
-                var distributedLock = new PostgreSqlDistributedLock("hello", _timeout, connection, options);
+                var distributedLock = new PostgreSqlDistributedLock("hello", _timeout, provider, options);
                 distributedLock.Dispose();
 
                 var lockCount = connection.Query<long>(
@@ -146,11 +146,12 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        private void UseConnection(Action<NpgsqlConnection> action)
+        private void UseConnection(Action<IPostgreSqlConnectionProvider, NpgsqlConnection> action)
         {
-            using (var connection = ConnectionUtils.CreateConnection())
+            var provider = ConnectionUtils.CreateConnection();
+            using (var connection = provider.AcquireConnection())
             {
-                action(connection);
+                action(provider, connection.Connection);
             }
         }
 
