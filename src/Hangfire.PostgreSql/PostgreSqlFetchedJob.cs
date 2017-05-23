@@ -5,12 +5,7 @@ using Hangfire.Storage;
 
 namespace Hangfire.PostgreSql
 {
-#if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-    public
-#else
-	internal
-#endif
-        class PostgreSqlFetchedJob : IFetchedJob
+    internal class PostgreSqlFetchedJob : IFetchedJob
     {
         private readonly IDbConnection _connection;
         private readonly PostgreSqlStorageOptions _options;
@@ -43,7 +38,7 @@ namespace Hangfire.PostgreSql
 DELETE FROM ""{_options.SchemaName}"".""jobqueue"" 
 WHERE ""id"" = @id;
 ";
-            _connection.Execute(sql, new {id = Id});
+            _connection.Execute(sql, new { id = Id });
             _removedFromQueue = true;
         }
 
@@ -54,7 +49,7 @@ UPDATE ""{_options.SchemaName}"".""jobqueue""
 SET ""fetchedat"" = NULL 
 WHERE ""id"" = @id;
 ";
-            _connection.Execute(sql, new {id = Id});
+            _connection.Execute(sql, new { id = Id });
             _requeued = true;
         }
 

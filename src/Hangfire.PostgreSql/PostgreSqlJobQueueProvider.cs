@@ -1,36 +1,23 @@
-﻿using System;
-using System.Data;
+﻿using System.Data;
 
 namespace Hangfire.PostgreSql
 {
-#if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-    public
-#else
-	internal
-#endif
-        class PostgreSqlJobQueueProvider : IPersistentJobQueueProvider
+    internal class PostgreSqlJobQueueProvider : IPersistentJobQueueProvider
     {
         private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlJobQueueProvider(PostgreSqlStorageOptions options)
         {
-            if (options == null) throw new ArgumentNullException("options");
+            Guard.ThrowIfNull(options, nameof(options));
             _options = options;
         }
 
-        public PostgreSqlStorageOptions Options
-        {
-            get { return _options; }
-        }
+        public PostgreSqlStorageOptions Options => _options;
 
         public IPersistentJobQueue GetJobQueue(IDbConnection connection)
-        {
-            return new PostgreSqlJobQueue(connection, _options);
-        }
+            => new PostgreSqlJobQueue(connection, _options);
 
         public IPersistentJobQueueMonitoringApi GetJobQueueMonitoringApi(IDbConnection connection)
-        {
-            return new PostgreSqlJobQueueMonitoringApi(connection, _options);
-        }
+            => new PostgreSqlJobQueueMonitoringApi(connection, _options);
     }
 }
