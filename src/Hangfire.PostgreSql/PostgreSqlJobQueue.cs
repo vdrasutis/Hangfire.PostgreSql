@@ -48,7 +48,7 @@ namespace Hangfire.PostgreSql
             if (queues == null) throw new ArgumentNullException(nameof(queues));
             if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
 
-            long timeoutSeconds = (long)_options.InvisibilityTimeout.Negate().TotalSeconds;
+            long timeoutSeconds = (long) _options.InvisibilityTimeout.Negate().TotalSeconds;
             FetchedJob fetchedJob;
 
             var fetchJobSqlTemplate = $@"
@@ -80,7 +80,7 @@ RETURNING ""id"" AS ""Id"", ""jobid"" AS ""JobId"", ""queue"" AS ""Queue"", ""fe
                     {
                         var jobToFetch = _connection.Query<FetchedJob>(
                                 fetchJobSql,
-                                new { queues = queues.ToList() })
+                                new {queues = queues.ToList()})
                             .SingleOrDefault();
 
                         return jobToFetch;
@@ -88,7 +88,8 @@ RETURNING ""id"" AS ""Id"", ""jobid"" AS ""JobId"", ""queue"" AS ""Queue"", ""fe
                     out fetchedJob,
                     ex =>
                     {
-                        var smoothException = ex is PostgresException postgresException && postgresException.SqlState.Equals("40001");
+                        var smoothException = ex is PostgresException postgresException &&
+                                              postgresException.SqlState.Equals("40001");
                         return smoothException;
                     });
 
@@ -119,7 +120,8 @@ INSERT INTO ""{_options.SchemaName}"".""jobqueue"" (""jobid"", ""queue"")
 VALUES (@jobId, @queue);
 ";
 
-            _connection.Execute(enqueueJobSql, new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue });
+            _connection.Execute(enqueueJobSql,
+                new {jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue});
         }
 
         [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]

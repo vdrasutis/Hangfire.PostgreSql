@@ -134,7 +134,7 @@ namespace Hangfire.PostgreSql
             return UseConnection<IList<ServerDto>>(connection =>
             {
                 var servers = connection.Query<Entities.Server>(
-                    @"SELECT * FROM """ + _options.SchemaName + @""".""server""")
+                        @"SELECT * FROM """ + _options.SchemaName + @""".""server""")
                     .ToList();
 
                 var result = new List<ServerDto>();
@@ -186,7 +186,8 @@ namespace Hangfire.PostgreSql
                     Job = job,
                     Result = stateData.ContainsKey("Result") ? stateData["Result"] : null,
                     TotalDuration = stateData.ContainsKey("PerformanceDuration") && stateData.ContainsKey("Latency")
-                        ? (long?)long.Parse(stateData["PerformanceDuration"]) + (long?)long.Parse(stateData["Latency"])
+                        ? (long?) long.Parse(stateData["PerformanceDuration"]) +
+                          (long?) long.Parse(stateData["Latency"])
                         : null,
                     SucceededAt = JobHelper.DeserializeNullableDateTime(stateData["SucceededAt"])
                 }));
@@ -212,7 +213,7 @@ namespace Hangfire.PostgreSql
             {
                 var tuples = _queueProviders
                     .Select(x => x.GetJobQueueMonitoringApi(connection))
-                    .SelectMany(x => x.GetQueues(), (monitoring, queue) => new { Monitoring = monitoring, Queue = queue })
+                    .SelectMany(x => x.GetQueues(), (monitoring, queue) => new {Monitoring = monitoring, Queue = queue})
                     .OrderBy(x => x.Queue)
                     .ToArray();
 
@@ -279,7 +280,8 @@ SELECT ""id"" ""Id"", ""invocationdata"" ""InvocationData"", ""arguments"" ""Arg
 FROM """ + _options.SchemaName + @""".""job"" 
 WHERE ""id"" = @id;
 
-SELECT ""jobid"" ""JobId"", ""name"" ""Name"", ""value"" ""Value"" from """ + _options.SchemaName + @""".""jobparameter"" 
+SELECT ""jobid"" ""JobId"", ""name"" ""Name"", ""value"" ""Value"" from """ + _options.SchemaName +
+                             @""".""jobparameter"" 
 WHERE ""jobid"" = @id;
 
 SELECT ""jobid"" ""JobId"", ""name"" ""Name"", ""reason"" ""Reason"", ""createdat"" ""CreatedAt"", ""data"" ""Data"" 
@@ -287,7 +289,8 @@ FROM """ + _options.SchemaName + @""".""state""
 WHERE ""jobid"" = @id 
 ORDER BY ""id"" DESC;
 ";
-                using (var multi = connection.QueryMultiple(sql, new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) }))
+                using (var multi = connection.QueryMultiple(sql,
+                    new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture)}))
                 {
                     var job = multi.Read<SqlJob>().SingleOrDefault();
                     if (job == null) return null;
@@ -427,10 +430,10 @@ GROUP BY ""key"";
 ";
 
             var valuesMap = connection.Query(
-                query,
-                new { keys = keyMaps.Keys.ToList() })
+                    query,
+                    new {keys = keyMaps.Keys.ToList()})
                 .ToList()
-                .ToDictionary(x => (string)x.key, x => (long)x.count);
+                .ToDictionary(x => (string) x.key, x => (long) x.count);
 
             foreach (var key in keyMaps.Keys)
             {
@@ -474,8 +477,8 @@ AND jq.""fetchedat"" IS NULL;
 ";
 
             var jobs = connection.Query<SqlJob>(
-                enqueuedJobsSql,
-                new { jobIds = jobIds.ToList() })
+                    enqueuedJobsSql,
+                    new {jobIds = jobIds.ToList()})
                 .ToList();
 
             return DeserializeJobs(
@@ -499,9 +502,9 @@ WHERE ""statename"" = @state;
 ";
 
             var count = connection.Query<long>(
-                 sqlQuery,
-                 new { state = stateName })
-                 .Single();
+                    sqlQuery,
+                    new {state = stateName})
+                .Single();
 
             return count;
         }
@@ -521,7 +524,8 @@ WHERE ""statename"" = @state;
             }
         }
 
-        private JobList<TDto> GetJobs<TDto>(NpgsqlConnection connection, int @from, int count, string stateName, Func<SqlJob, Job, Dictionary<string, string>, TDto> selector)
+        private JobList<TDto> GetJobs<TDto>(NpgsqlConnection connection, int @from, int count, string stateName,
+            Func<SqlJob, Job, Dictionary<string, string>, TDto> selector)
         {
             string jobsSql = @"
 SELECT j.""id"" ""Id"", j.""invocationdata"" ""InvocationData"", j.""arguments"" ""Arguments"", j.""createdat"" ""CreatedAt"", 
@@ -534,9 +538,9 @@ LIMIT @count OFFSET @start;
 ";
 
             var jobs = connection.Query<SqlJob>(
-                        jobsSql,
-                        new { stateName = stateName, start = from, count = count })
-                        .ToList();
+                    jobsSql,
+                    new {stateName = stateName, start = from, count = count})
+                .ToList();
 
             return DeserializeJobs(jobs, selector);
         }
@@ -574,8 +578,8 @@ AND ""jq"".""fetchedat"" IS NOT NULL;
 ";
 
             var jobs = connection.Query<SqlJob>(
-                fetchedJobsSql,
-                new { jobIds = jobIds.ToList() })
+                    fetchedJobsSql,
+                    new {jobIds = jobIds.ToList()})
                 .ToList();
 
             var result = new List<KeyValuePair<string, FetchedJobDto>>(jobs.Count);

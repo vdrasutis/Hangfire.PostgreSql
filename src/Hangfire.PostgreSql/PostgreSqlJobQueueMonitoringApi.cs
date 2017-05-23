@@ -44,7 +44,7 @@ namespace Hangfire.PostgreSql
 SELECT DISTINCT ""queue"" 
 FROM ""{_options.SchemaName}"".""jobqueue"";
 ";
-            return _connection.Query(sqlQuery).Select(x => (string)x.queue).ToList();
+            return _connection.Query(sqlQuery).Select(x => (string) x.queue).ToList();
         }
 
         public IEnumerable<int> GetEnqueuedJobIds(string queue, int @from, int perPage)
@@ -65,8 +65,8 @@ LIMIT @count OFFSET @start;
 ", fetched ? "IS NOT NULL" : "IS NULL");
 
             return _connection.Query<int>(
-                sqlQuery,
-                new {queue = queue, start = @from, count = perPage})
+                    sqlQuery,
+                    new {queue = queue, start = @from, count = perPage})
                 .ToList();
         }
 
@@ -92,7 +92,7 @@ SELECT (
     ) ""FetchedCount"";
 ";
 
-            var result = _connection.Query(sqlQuery, new { queue = queue }).Single();
+            var result = _connection.Query(sqlQuery, new {queue = queue}).Single();
 
             return new EnqueuedAndFetchedCountDto
             {

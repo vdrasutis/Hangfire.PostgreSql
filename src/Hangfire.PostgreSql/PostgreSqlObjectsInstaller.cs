@@ -53,8 +53,8 @@ namespace Hangfire.PostgreSql
                     try
                     {
                         script = GetStringResource(
-                          typeof(PostgreSqlObjectsInstaller).GetTypeInfo().Assembly,
-                          $"Hangfire.PostgreSql.Schema.Install.v{version.ToString(CultureInfo.InvariantCulture)}.sql");
+                            typeof(PostgreSqlObjectsInstaller).GetTypeInfo().Assembly,
+                            $"Hangfire.PostgreSql.Schema.Install.v{version.ToString(CultureInfo.InvariantCulture)}.sql");
                     }
                     catch (MissingManifestResourceException)
                     {
@@ -63,7 +63,8 @@ namespace Hangfire.PostgreSql
 
                     if (schemaName != "hangfire")
                     {
-                        script = script.Replace("'hangfire'", $"'{schemaName}'").Replace(@"""hangfire""", $@"""{schemaName}""");
+                        script = script.Replace("'hangfire'", $"'{schemaName}'")
+                            .Replace(@"""hangfire""", $@"""{schemaName}""");
                     }
 
                     using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
@@ -77,7 +78,11 @@ namespace Hangfire.PostgreSql
                             // Due to https://github.com/npgsql/npgsql/issues/641 , it's not possible to send
                             // CREATE objects and use the same object in the same command
                             // So bump the version in another command
-                            connection.Execute($@"UPDATE ""{schemaName}"".""schema"" SET ""version"" = @version WHERE ""version"" = @previousVersion", new { version, previousVersion }, transaction);
+                            connection.Execute(
+                                $@"UPDATE ""{
+                                        schemaName
+                                    }"".""schema"" SET ""version"" = @version WHERE ""version"" = @previousVersion",
+                                new {version, previousVersion}, transaction);
 
                             transaction.Commit();
                         }
@@ -111,7 +116,8 @@ namespace Hangfire.PostgreSql
             {
                 if (stream == null)
                 {
-                    throw new MissingManifestResourceException($"Requested resource `{resourceName}` was not found in the assembly `{assembly}`.");
+                    throw new MissingManifestResourceException(
+                        $"Requested resource `{resourceName}` was not found in the assembly `{assembly}`.");
                 }
 
                 using (var reader = new StreamReader(stream))

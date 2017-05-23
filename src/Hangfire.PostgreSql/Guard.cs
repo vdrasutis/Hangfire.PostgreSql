@@ -10,7 +10,9 @@ namespace Hangfire.PostgreSql
     [DebuggerStepThrough]
     public static class Guard
     {
-        private const string EnlistIsNotAvailableExceptionMessage = "Npgsql is not fully compatible with TransactionScope yet, only connections without Enlist = true are accepted.";
+        private const string EnlistIsNotAvailableExceptionMessage =
+                "Npgsql is not fully compatible with TransactionScope yet, only connections without Enlist = true are accepted."
+            ;
 
         [ContractAnnotation("condition:false => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

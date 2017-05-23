@@ -1,5 +1,4 @@
 ﻿using System;
-using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
@@ -11,7 +10,11 @@ namespace Hangfire.PostgreSql
             int? tryCount = default(int?))
         {
             object futile;
-            return TryExecute(() => { action(); return null; }, out futile, smoothExValidator, tryCount);
+            return TryExecute(() =>
+            {
+                action();
+                return null;
+            }, out futile, smoothExValidator, tryCount);
         }
 
         public static bool TryExecute<T>(

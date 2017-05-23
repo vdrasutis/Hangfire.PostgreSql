@@ -31,7 +31,7 @@ namespace Hangfire.PostgreSql
 #else
 	internal
 #endif
-    class PostgreSqlFetchedJob : IFetchedJob
+        class PostgreSqlFetchedJob : IFetchedJob
     {
         private readonly IDbConnection _connection;
         private readonly PostgreSqlStorageOptions _options;
@@ -64,7 +64,7 @@ namespace Hangfire.PostgreSql
 DELETE FROM ""{_options.SchemaName}"".""jobqueue"" 
 WHERE ""id"" = @id;
 ";
-            _connection.Execute(sql, new { id = Id });
+            _connection.Execute(sql, new {id = Id});
             _removedFromQueue = true;
         }
 
@@ -75,7 +75,7 @@ UPDATE ""{_options.SchemaName}"".""jobqueue""
 SET ""fetchedat"" = NULL 
 WHERE ""id"" = @id;
 ";
-            _connection.Execute(sql, new { id = Id });
+            _connection.Execute(sql, new {id = Id});
             _requeued = true;
         }
 

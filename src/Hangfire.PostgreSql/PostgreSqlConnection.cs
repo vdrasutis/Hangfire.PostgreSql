@@ -148,7 +148,7 @@ FROM """ + _options.SchemaName + @""".""job""
 WHERE ""id"" = @id;
 ";
 
-            var jobData = Connection.Query<SqlJob>(sql, new { id = Convert.ToInt32(id, CultureInfo.InvariantCulture) })
+            var jobData = Connection.Query<SqlJob>(sql, new {id = Convert.ToInt32(id, CultureInfo.InvariantCulture)})
                 .SingleOrDefault();
 
             if (jobData == null) return null;
@@ -189,7 +189,9 @@ INNER JOIN """ + _options.SchemaName + @""".""job"" j on j.""stateid"" = s.""id"
 WHERE j.""id"" = @jobId;
 ";
 
-            var sqlState = Connection.Query<SqlState>(sql, new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) }).SingleOrDefault();
+            var sqlState = Connection
+                .Query<SqlState>(sql, new {jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture)})
+                .SingleOrDefault();
             if (sqlState == null)
             {
                 return null;
@@ -230,7 +232,7 @@ WHERE NOT EXISTS (
 );";
 
             Connection.Execute(sql,
-                new { jobId = Convert.ToInt32(id, CultureInfo.InvariantCulture), name, value });
+                new {jobId = Convert.ToInt32(id, CultureInfo.InvariantCulture), name, value});
         }
 
         public override string GetJobParameter(string id, string name)
@@ -238,11 +240,14 @@ WHERE NOT EXISTS (
             if (id == null) throw new ArgumentNullException(nameof(id));
             if (name == null) throw new ArgumentNullException(nameof(name));
 
-            string query = $@"SELECT ""value"" FROM ""{_options.SchemaName}"".""jobparameter"" WHERE ""jobid"" = @id AND ""name"" = @name;
+            string query =
+                $@"SELECT ""value"" FROM ""{
+                        _options.SchemaName
+                    }"".""jobparameter"" WHERE ""jobid"" = @id AND ""name"" = @name;
 ";
 
             return Connection.Query<string>(query,
-                new { id = Convert.ToInt32(id, CultureInfo.InvariantCulture), name = name })
+                    new {id = Convert.ToInt32(id, CultureInfo.InvariantCulture), name = name})
                 .SingleOrDefault();
         }
 
@@ -252,7 +257,7 @@ WHERE NOT EXISTS (
 
             string query = $@"SELECT ""value"" FROM ""{_options.SchemaName}"".""set"" WHERE ""key"" = @key;";
 
-            var result = Connection.Query<string>(query, new { key });
+            var result = Connection.Query<string>(query, new {key});
 
             return new HashSet<string>(result);
         }
@@ -260,17 +265,18 @@ WHERE NOT EXISTS (
         public override string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
-            if (toScore < fromScore) throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.");
+            if (toScore < fromScore)
+                throw new ArgumentException("The `toScore` value must be higher or equal to the `fromScore` value.");
 
             return Connection.Query<string>(
-                @"
+                    @"
 SELECT ""value"" 
 FROM """ + _options.SchemaName + @""".""set"" 
 WHERE ""key"" = @key 
 AND ""score"" BETWEEN @from AND @to 
 ORDER BY ""score"" LIMIT 1;
 ",
-                new { key, from = fromScore, to = toScore })
+                    new {key, from = fromScore, to = toScore})
                 .SingleOrDefault();
         }
 
@@ -304,7 +310,8 @@ WHERE NOT EXISTS (
             {
                 foreach (var keyValuePair in keyValuePairs)
                 {
-                    Connection.Execute(sql, new { key = key, field = keyValuePair.Key, value = keyValuePair.Value }, transaction);
+                    Connection.Execute(sql, new {key = key, field = keyValuePair.Key, value = keyValuePair.Value},
+                        transaction);
                 }
                 transaction.Commit();
             }
@@ -315,11 +322,11 @@ WHERE NOT EXISTS (
             if (key == null) throw new ArgumentNullException(nameof(key));
 
             var result = Connection.Query<SqlHash>(
-                $@"SELECT ""field"" ""Field"", ""value"" ""Value"" 
+                    $@"SELECT ""field"" ""Field"", ""value"" ""Value"" 
 					FROM ""{_options.SchemaName}"".""hash"" 
 					WHERE ""key"" = @key;
 					",
-                new { key })
+                    new {key})
                 .ToDictionary(x => x.Field, x => x.Value);
 
             return result.Count != 0 ? result : null;
@@ -357,7 +364,7 @@ WHERE NOT EXISTS (
 ";
 
             Connection.Execute(sql,
-                new { id = serverId, data = JobHelper.ToJson(data) });
+                new {id = serverId, data = JobHelper.ToJson(data)});
         }
 
         public override void RemoveServer(string serverId)
@@ -366,7 +373,7 @@ WHERE NOT EXISTS (
 
             Connection.Execute(
                 $@"DELETE FROM ""{_options.SchemaName}"".""server"" WHERE ""id"" = @id;",
-                new { id = serverId });
+                new {id = serverId});
         }
 
         public override void Heartbeat(string serverId)
@@ -378,7 +385,7 @@ WHERE NOT EXISTS (
 				SET ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC' 
 				WHERE ""id"" = @id;";
 
-            Connection.Execute(query, new { id = serverId });
+            Connection.Execute(query, new {id = serverId});
         }
 
         public override int RemoveTimedOutServers(TimeSpan timeOut)
@@ -390,8 +397,10 @@ WHERE NOT EXISTS (
 
             string query =
                 $@"DELETE FROM ""{_options.SchemaName}"".""server"" 
-				WHERE ""lastheartbeat"" < (NOW() AT TIME ZONE 'UTC' - INTERVAL '{(
-                    long)timeOut.TotalMilliseconds} MILLISECONDS');";
+				WHERE ""lastheartbeat"" < (NOW() AT TIME ZONE 'UTC' - INTERVAL '{
+                        (
+                            long) timeOut.TotalMilliseconds
+                    } MILLISECONDS');";
 
             return Connection.Execute(query);
         }
@@ -402,25 +411,29 @@ WHERE NOT EXISTS (
 
             string query = $@"select count(""key"") from ""{_options.SchemaName}"".""set"" where ""key"" = @key";
 
-            return Connection.Query<long>(query, new { key }).First();
+            return Connection.Query<long>(query, new {key}).First();
         }
 
         public override List<string> GetAllItemsFromList(string key)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
-            string query = $@"select ""value"" from ""{_options.SchemaName}"".""list"" where ""key"" = @key order by ""id"" desc";
+            string query =
+                $@"select ""value"" from ""{_options.SchemaName}"".""list"" where ""key"" = @key order by ""id"" desc";
 
-            return Connection.Query<string>(query, new { key }).ToList();
+            return Connection.Query<string>(query, new {key}).ToList();
         }
 
         public override long GetCounter(string key)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
-            string query = $@"select sum(s.""Value"") from (select sum(""value"") as ""Value"" from ""{_options.SchemaName}"".""counter"" where ""key"" = @key) s";
+            string query =
+                $@"select sum(s.""Value"") from (select sum(""value"") as ""Value"" from ""{
+                        _options.SchemaName
+                    }"".""counter"" where ""key"" = @key) s";
 
-            return Connection.Query<long?>(query, new { key }).SingleOrDefault() ?? 0;
+            return Connection.Query<long?>(query, new {key}).SingleOrDefault() ?? 0;
         }
 
         public override long GetListCount(string key)
@@ -429,7 +442,7 @@ WHERE NOT EXISTS (
 
             string query = $@"select count(""id"") from ""{_options.SchemaName}"".""list"" where ""key"" = @key";
 
-            return Connection.Query<long>(query, new { key }).SingleOrDefault();
+            return Connection.Query<long>(query, new {key}).SingleOrDefault();
         }
 
         public override TimeSpan GetListTtl(string key)
@@ -438,7 +451,7 @@ WHERE NOT EXISTS (
 
             string query = $@"select min(""expireat"") from ""{_options.SchemaName}"".""list"" where ""key"" = @key";
 
-            var result = Connection.Query<DateTime?>(query, new { key }).Single();
+            var result = Connection.Query<DateTime?>(query, new {key}).Single();
             if (!result.HasValue) return TimeSpan.FromSeconds(-1);
 
             return result.Value - DateTime.UtcNow;
@@ -454,7 +467,8 @@ WHERE NOT EXISTS (
 					where ""key"" = @key 
 				) as s where s.row_num between @startingFrom and @endingAt";
 
-            return Connection.Query<string>(query, new { key, startingFrom = startingFrom + 1, endingAt = endingAt + 1 }).ToList();
+            return Connection.Query<string>(query, new {key, startingFrom = startingFrom + 1, endingAt = endingAt + 1})
+                .ToList();
         }
 
         public override long GetHashCount(string key)
@@ -463,7 +477,7 @@ WHERE NOT EXISTS (
 
             string query = $@"select count(""id"") from ""{_options.SchemaName}"".""hash"" where ""key"" = @key";
 
-            return Connection.Query<long>(query, new { key }).SingleOrDefault();
+            return Connection.Query<long>(query, new {key}).SingleOrDefault();
         }
 
         public override TimeSpan GetHashTtl(string key)
@@ -472,7 +486,7 @@ WHERE NOT EXISTS (
 
             string query = $@"select min(""expireat"") from ""{_options.SchemaName}"".""hash"" where ""key"" = @key";
 
-            var result = Connection.Query<DateTime?>(query, new { key }).Single();
+            var result = Connection.Query<DateTime?>(query, new {key}).Single();
             if (!result.HasValue) return TimeSpan.FromSeconds(-1);
 
             return result.Value - DateTime.UtcNow;
@@ -488,7 +502,8 @@ WHERE NOT EXISTS (
 					where ""key"" = @key 
 				) as s where s.row_num between @startingFrom and @endingAt";
 
-            return Connection.Query<string>(query, new { key, startingFrom = startingFrom + 1, endingAt = endingAt + 1 }).ToList();
+            return Connection.Query<string>(query, new {key, startingFrom = startingFrom + 1, endingAt = endingAt + 1})
+                .ToList();
         }
 
         public override TimeSpan GetSetTtl(string key)
@@ -497,7 +512,7 @@ WHERE NOT EXISTS (
 
             string query = $@"select min(""expireat"") from ""{_options.SchemaName}"".""set"" where ""key"" = @key";
 
-            var result = Connection.Query<DateTime?>(query, new { key }).SingleOrDefault();
+            var result = Connection.Query<DateTime?>(query, new {key}).SingleOrDefault();
             if (!result.HasValue) return TimeSpan.FromSeconds(-1);
 
             return result.Value - DateTime.UtcNow;
@@ -508,9 +523,12 @@ WHERE NOT EXISTS (
             Guard.ThrowIfNull(key, nameof(key));
             Guard.ThrowIfNull(name, nameof(name));
 
-            var query = $@"select ""value"" from ""{_options.SchemaName}"".""hash"" where ""key"" = @key and ""field"" = @field";
+            var query =
+                $@"select ""value"" from ""{
+                        _options.SchemaName
+                    }"".""hash"" where ""key"" = @key and ""field"" = @field";
 
-            return Connection.Query<string>(query, new { key, field = name }).SingleOrDefault();
+            return Connection.Query<string>(query, new {key, field = name}).SingleOrDefault();
         }
 
         public override void Dispose()

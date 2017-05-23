@@ -56,7 +56,7 @@ namespace Hangfire.PostgreSql
         {
             Guard.ThrowIfNull(nameOrConnectionString, nameof(nameOrConnectionString));
             Guard.ThrowIfNull(options, nameof(options));
-            
+
             _options = options ?? throw new ArgumentNullException(nameof(options));
 
             if (IsConnectionString(nameOrConnectionString))
@@ -126,7 +126,7 @@ namespace Hangfire.PostgreSql
 
         public override IEnumerable<IServerComponent> GetComponents()
         {
-            return new[] { new ExpirationManager(this, _options) };
+            return new[] {new ExpirationManager(this, _options)};
         }
 
         public override void WriteOptionsToLog(ILog logger)
@@ -144,7 +144,8 @@ namespace Hangfire.PostgreSql
             try
             {
                 var builder = new NpgsqlConnectionStringBuilder(_connectionString);
-                var info = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {_options.SchemaName}";
+                var info =
+                    $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {_options.SchemaName}";
                 return info;
             }
             catch (Exception)

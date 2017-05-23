@@ -28,7 +28,8 @@ namespace Hangfire.PostgreSql
     public class PersistentJobQueueProviderCollection : IEnumerable<IPersistentJobQueueProvider>
     {
         private readonly List<IPersistentJobQueueProvider> _providers
-            = new List<IPersistentJobQueueProvider>(); 
+            = new List<IPersistentJobQueueProvider>();
+
         private readonly Dictionary<string, IPersistentJobQueueProvider> _providersByQueue
             = new Dictionary<string, IPersistentJobQueueProvider>(StringComparer.OrdinalIgnoreCase);
 
@@ -55,7 +56,7 @@ namespace Hangfire.PostgreSql
 
         public IPersistentJobQueueProvider GetProvider(string queue)
         {
-            return _providersByQueue.ContainsKey(queue) 
+            return _providersByQueue.ContainsKey(queue)
                 ? _providersByQueue[queue]
                 : _defaultProvider;
         }

@@ -51,7 +51,9 @@ namespace Hangfire.PostgreSql
             _queueProviders = queueProviders ?? throw new ArgumentNullException(nameof(queueProviders));
         }
 
-        public override void Dispose() { }
+        public override void Dispose()
+        {
+        }
 
         public override void Commit()
         {
@@ -69,13 +71,13 @@ namespace Hangfire.PostgreSql
         {
             var sql = $@"
 UPDATE ""{_options.SchemaName}"".""job""
-SET ""expireat"" = NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long)expireIn.TotalSeconds} SECONDS'
+SET ""expireat"" = NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long) expireIn.TotalSeconds} SECONDS'
 WHERE ""id"" = @id;
 ";
 
             QueueCommand((con, trx) => con.Execute(
                 sql,
-                new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) }, trx));
+                new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture)}, trx));
         }
 
         public override void PersistJob(string jobId)
@@ -87,7 +89,7 @@ WHERE ""id"" = @id;
 ";
             QueueCommand((con, trx) => con.Execute(
                 sql,
-                new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) }, trx));
+                new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture)}, trx));
         }
 
         public override void SetJobState(string jobId, IState state)
@@ -148,18 +150,18 @@ VALUES (@jobId, @name, @reason, @createdAt, @data);
             var sql = $@"INSERT INTO ""{_options.SchemaName}"".""counter"" (""key"", ""value"") VALUES (@key, @value);";
             QueueCommand((con, trx) => con.Execute(
                 sql,
-                new { key, value = +1 }, trx));
+                new {key, value = +1}, trx));
         }
 
         public override void IncrementCounter(string key, TimeSpan expireIn)
         {
             var sql = $@"
 INSERT INTO ""{_options.SchemaName}"".""counter""(""key"", ""value"", ""expireat"") 
-VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long)expireIn.TotalSeconds} SECONDS');";
+VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long) expireIn.TotalSeconds} SECONDS');";
 
             QueueCommand((con, trx) => con.Execute(
                 sql,
-                new { key, value = +1 }, trx));
+                new {key, value = +1}, trx));
         }
 
         public override void DecrementCounter(string key)
@@ -167,18 +169,18 @@ VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long)expireIn.Total
             var sql = $@"INSERT INTO ""{_options.SchemaName}"".""counter"" (""key"", ""value"") VALUES (@key, @value);";
             QueueCommand((con, trx) => con.Execute(
                 sql,
-                new { key, value = -1 }, trx));
+                new {key, value = -1}, trx));
         }
 
         public override void DecrementCounter(string key, TimeSpan expireIn)
         {
             var sql = $@"
 INSERT INTO ""{_options.SchemaName}"".""counter""(""key"", ""value"", ""expireat"") 
-VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long)expireIn.TotalSeconds} SECONDS');";
+VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long) expireIn.TotalSeconds} SECONDS');";
 
             QueueCommand((con, trx) => con.Execute(sql
                 ,
-                new { key, value = -1 }, trx));
+                new {key, value = -1}, trx));
         }
 
         public override void AddToSet(string key, string value)
@@ -211,7 +213,7 @@ WHERE NOT EXISTS (
 
             QueueCommand((con, trx) => con.Execute(
                 addSql,
-                new { key, value, score }, trx));
+                new {key, value, score}, trx));
         }
 
         public override void RemoveFromSet(string key, string value)
@@ -222,7 +224,7 @@ DELETE FROM ""{_options.SchemaName}"".""set""
 WHERE ""key"" = @key 
 AND ""value"" = @value;
 ",
-                new { key, value }, trx));
+                new {key, value}, trx));
         }
 
         public override void InsertToList(string key, string value)
@@ -232,7 +234,7 @@ AND ""value"" = @value;
 INSERT INTO ""{_options.SchemaName}"".""list"" (""key"", ""value"") 
 VALUES (@key, @value);
 ",
-                new { key, value }, trx));
+                new {key, value}, trx));
         }
 
         public override void RemoveFromList(string key, string value)
@@ -243,7 +245,7 @@ DELETE FROM ""{_options.SchemaName}"".""list""
 WHERE ""key"" = @key 
 AND ""value"" = @value;
 ",
-                new { key, value }, trx));
+                new {key, value}, trx));
         }
 
         public override void TrimList(string key, int keepStartingFrom, int keepEndingAt)
@@ -262,7 +264,7 @@ AND ""id"" NOT IN (
 
             QueueCommand((con, trx) => con.Execute(
                 trimSql,
-                new { key = key, start = keepStartingFrom, end = (keepEndingAt - keepStartingFrom + 1) }, trx));
+                new {key = key, start = keepStartingFrom, end = (keepEndingAt - keepStartingFrom + 1)}, trx));
         }
 
         public override void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
@@ -296,7 +298,8 @@ WHERE NOT EXISTS (
             {
                 var pair = keyValuePair;
 
-                QueueCommand((con, trx) => con.Execute(sql, new { key = key, field = pair.Key, value = pair.Value }, trx));
+                QueueCommand((con, trx) => con.Execute(sql, new {key = key, field = pair.Key, value = pair.Value},
+                    trx));
             }
         }
 
@@ -307,7 +310,7 @@ WHERE NOT EXISTS (
             var sql = $@"DELETE FROM ""{_options.SchemaName}"".""hash"" WHERE ""key"" = @key";
             QueueCommand((con, trx) => con.Execute(
                 sql,
-                new { key }, trx));
+                new {key}, trx));
         }
 
         public override void ExpireSet(string key, TimeSpan expireIn)
@@ -318,7 +321,7 @@ WHERE NOT EXISTS (
 
             QueueCommand((connection, transaction) => connection.Execute(
                 sql,
-                new { key, expireAt = DateTime.UtcNow.Add(expireIn) },
+                new {key, expireAt = DateTime.UtcNow.Add(expireIn)},
                 transaction));
         }
 
@@ -330,7 +333,7 @@ WHERE NOT EXISTS (
 
             QueueCommand((connection, transaction) => connection.Execute(
                 sql,
-                new { key, expireAt = DateTime.UtcNow.Add(expireIn) },
+                new {key, expireAt = DateTime.UtcNow.Add(expireIn)},
                 transaction));
         }
 
@@ -342,7 +345,7 @@ WHERE NOT EXISTS (
 
             QueueCommand((connection, transaction) => connection.Execute(
                 sql,
-                new { key, expireAt = DateTime.UtcNow.Add(expireIn) },
+                new {key, expireAt = DateTime.UtcNow.Add(expireIn)},
                 transaction));
         }
 
@@ -354,7 +357,7 @@ WHERE NOT EXISTS (
 
             QueueCommand((connection, transaction) => connection.Execute(
                 sql,
-                new { key },
+                new {key},
                 transaction));
         }
 
@@ -366,7 +369,7 @@ WHERE NOT EXISTS (
 
             QueueCommand((connection, transaction) => connection.Execute(
                 sql,
-                new { key },
+                new {key},
                 transaction));
         }
 
@@ -378,7 +381,7 @@ WHERE NOT EXISTS (
 
             QueueCommand((connection, transaction) => connection.Execute(
                 sql,
-                new { key },
+                new {key},
                 transaction));
         }
 
@@ -387,11 +390,14 @@ WHERE NOT EXISTS (
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (items == null) throw new ArgumentNullException(nameof(items));
 
-            var sql = $@"INSERT INTO ""{_options.SchemaName}"".""set"" (""key"", ""value"", ""score"") VALUES (@key, @value, 0.0)";
+            var sql =
+                $@"INSERT INTO ""{
+                        _options.SchemaName
+                    }"".""set"" (""key"", ""value"", ""score"") VALUES (@key, @value, 0.0)";
 
             QueueCommand((connection, transaction) => connection.Execute(
                 sql,
-                items.Select(value => new { key, value }).ToList(),
+                items.Select(value => new {key, value}).ToList(),
                 transaction));
         }
 
@@ -403,7 +409,7 @@ WHERE NOT EXISTS (
 
             QueueCommand((connection, transaction) => connection.Execute(
                 sql,
-                new { key },
+                new {key},
                 transaction));
         }
 

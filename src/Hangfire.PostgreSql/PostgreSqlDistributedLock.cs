@@ -88,7 +88,7 @@ WHERE NOT EXISTS (
                 }
                 else
                 {
-                    int sleepDuration = (int)(timeout.TotalMilliseconds - lockAcquiringTime.ElapsedMilliseconds);
+                    int sleepDuration = (int) (timeout.TotalMilliseconds - lockAcquiringTime.ElapsedMilliseconds);
                     if (sleepDuration > 1000) sleepDuration = 1000;
                     if (sleepDuration > 0)
                     {
@@ -105,7 +105,8 @@ WHERE NOT EXISTS (
                 $"Could not place a lock on the resource \'{resource}\': Lock timeout.");
         }
 
-        private static void TryRemoveDeadlock(string resource, IDbConnection connection, PostgreSqlStorageOptions options)
+        private static void TryRemoveDeadlock(string resource, IDbConnection connection,
+            PostgreSqlStorageOptions options)
         {
             try
             {
@@ -113,7 +114,10 @@ WHERE NOT EXISTS (
                 {
                     int affected = -1;
 
-                    affected = connection.Execute($@"DELETE FROM ""{options.SchemaName}"".""lock"" WHERE ""resource"" = @resource AND ""acquired"" < @timeout",
+                    affected = connection.Execute(
+                        $@"DELETE FROM ""{
+                                options.SchemaName
+                            }"".""lock"" WHERE ""resource"" = @resource AND ""acquired"" < @timeout",
                         new
                         {
                             resource = resource,
@@ -138,10 +142,10 @@ WHERE NOT EXISTS (
 DELETE FROM ""{_options.SchemaName}"".""lock"" 
 WHERE ""resource"" = @resource;
 ",
-            new
-            {
-                resource = _resource
-            });
+                new
+                {
+                    resource = _resource
+                });
 
 
             if (rowsAffected <= 0)

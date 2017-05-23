@@ -81,9 +81,10 @@ namespace Hangfire.PostgreSql
 
                 do
                 {
-                    using (var storageConnection = (PostgreSqlConnection)_storage.GetConnection())
+                    using (var storageConnection = (PostgreSqlConnection) _storage.GetConnection())
                     {
-                        using (var transaction = storageConnection.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
+                        using (var transaction =
+                            storageConnection.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
                         {
                             removedCount = storageConnection.Connection.Execute(
                                 string.Format(@"
@@ -123,7 +124,7 @@ WHERE ""id"" IN (
 
         private void AggregateCounter(string counterName)
         {
-            using (var connection = (PostgreSqlConnection)_storage.GetConnection())
+            using (var connection = (PostgreSqlConnection) _storage.GetConnection())
             {
                 using (var transaction = connection.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
                 {
@@ -138,13 +139,17 @@ RETURNING *
 SELECT SUM(value) FROM counters;
 ";
 
-                    var aggregatedValue = connection.Connection.ExecuteScalar<long>(aggregateQuery, transaction: transaction);
+                    var aggregatedValue =
+                        connection.Connection.ExecuteScalar<long>(aggregateQuery, transaction: transaction);
                     transaction.Commit();
 
                     if (aggregatedValue > 0)
                     {
-                        var insertQuery = $@"INSERT INTO ""{_options.SchemaName}"".""counter""(""key"", ""value"") VALUES (@key, @value);";
-                        connection.Connection.Execute(insertQuery, new { key = counterName, value = aggregatedValue });
+                        var insertQuery =
+                            $@"INSERT INTO ""{
+                                    _options.SchemaName
+                                }"".""counter""(""key"", ""value"") VALUES (@key, @value);";
+                        connection.Connection.Execute(insertQuery, new {key = counterName, value = aggregatedValue});
                     }
                 }
             }

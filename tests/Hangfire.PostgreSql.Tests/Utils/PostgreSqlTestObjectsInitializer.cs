@@ -20,12 +20,10 @@
 //    Special thanks goes to him.
 
 using System;
-using System.Diagnostics.CodeAnalysis;
+using System.Data;
 using System.IO;
 using System.Reflection;
-using Dapper;
 using Npgsql;
-using System.Data;
 
 namespace Hangfire.PostgreSql.Tests
 {
@@ -35,36 +33,37 @@ namespace Hangfire.PostgreSql.Tests
         {
             if (connection == null) throw new ArgumentNullException(nameof(connection));
 
-			string script = null;
+            string script = null;
 
 
-               script = GetStringResource(
-              typeof(PostgreSqlTestObjectsInitializer).GetTypeInfo().Assembly,
-                "Hangfire.PostgreSql.Tests.Clean.sql").Replace("'hangfire'", string.Format("'{0}'", ConnectionUtils.GetSchemaName()));
+            script = GetStringResource(
+                    typeof(PostgreSqlTestObjectsInitializer).GetTypeInfo().Assembly,
+                    "Hangfire.PostgreSql.Tests.Clean.sql")
+                .Replace("'hangfire'", string.Format("'{0}'", ConnectionUtils.GetSchemaName()));
 
-			//connection.Execute(script);
+            //connection.Execute(script);
 
-			using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
-			using (var command = new NpgsqlCommand(script, connection, transaction))
-			{
-				command.CommandTimeout = 120;
-				try
-				{
-					command.ExecuteNonQuery();
-					transaction.Commit();
-				}
-				catch (NpgsqlException)
-				{
-					throw;
-				}
-			}
-		}
+            using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
+            using (var command = new NpgsqlCommand(script, connection, transaction))
+            {
+                command.CommandTimeout = 120;
+                try
+                {
+                    command.ExecuteNonQuery();
+                    transaction.Commit();
+                }
+                catch (NpgsqlException)
+                {
+                    throw;
+                }
+            }
+        }
 
         private static string GetStringResource(Assembly assembly, string resourceName)
         {
             using (var stream = assembly.GetManifestResourceStream(resourceName))
             {
-                if (stream == null) 
+                if (stream == null)
                 {
                     throw new InvalidOperationException(String.Format(
                         "Requested resource `{0}` was not found in the assembly `{1}`.",
@@ -78,6 +77,5 @@ namespace Hangfire.PostgreSql.Tests
                 }
             }
         }
-
     }
 }

@@ -60,7 +60,7 @@ namespace Hangfire.PostgreSql.Tests
 
                 var lockCount = connection.Query<long>(
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
-                    new { resource = "hello" }).Single();
+                    new {resource = "hello"}).Single();
 
                 Assert.Equal(lockCount, 1);
                 //Assert.Equal("Exclusive", lockMode);
@@ -68,20 +68,22 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Ctor_AcquiresExclusiveApplicationLock_WithUseNativeDatabaseTransactions_OnSession_WhenDeadlockIsOccured()
+        public void
+            Ctor_AcquiresExclusiveApplicationLock_WithUseNativeDatabaseTransactions_OnSession_WhenDeadlockIsOccured()
         {
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
                 SchemaName = GetSchemaName(),
                 DistributedLockTimeout = TimeSpan.FromSeconds(10)
             };
-            
+
             UseConnection(connection =>
             {
                 // Arrange
                 var timeout = TimeSpan.FromSeconds(15);
                 var resourceName = "hello";
-                connection.Execute($@"INSERT INTO ""{GetSchemaName()}"".""lock"" VALUES ('{resourceName}', 0, '{DateTime.UtcNow}')");
+                connection.Execute(
+                    $@"INSERT INTO ""{GetSchemaName()}"".""lock"" VALUES ('{resourceName}', 0, '{DateTime.UtcNow}')");
 
                 // Act
                 var distributedLock = new PostgreSqlDistributedLock(resourceName, timeout, connection, options);
@@ -106,7 +108,7 @@ namespace Hangfire.PostgreSql.Tests
 
                 var lockCount = connection.Query<long>(
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
-                    new { resource = "hello" }).Single();
+                    new {resource = "hello"}).Single();
 
                 Assert.Equal(lockCount, 1);
                 //Assert.Equal("Exclusive", lockMode);
@@ -194,7 +196,7 @@ namespace Hangfire.PostgreSql.Tests
 
                 var lockCount = connection.Query<long>(
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
-                    new { resource = "hello" }).Single();
+                    new {resource = "hello"}).Single();
 
                 Assert.Equal(lockCount, 0);
             });
@@ -215,7 +217,7 @@ namespace Hangfire.PostgreSql.Tests
 
                 var lockCount = connection.Query<long>(
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
-                    new { resource = "hello" }).Single();
+                    new {resource = "hello"}).Single();
 
                 Assert.Equal(lockCount, 0);
             });

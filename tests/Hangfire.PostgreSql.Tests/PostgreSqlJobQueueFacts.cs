@@ -12,7 +12,7 @@ namespace Hangfire.PostgreSql.Tests
 {
     public class PostgreSqlJobQueueFacts
     {
-        private static readonly string[] DefaultQueues = { "default" };
+        private static readonly string[] DefaultQueues = {"default"};
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
@@ -58,9 +58,9 @@ namespace Hangfire.PostgreSql.Tests
                 queue.Enqueue("2", "2");
                 queue.Enqueue("3", "3");
 
-                Assert.Equal("1", queue.Dequeue(new[] { "1", "2", "3" }, token).JobId);
-                Assert.Equal("2", queue.Dequeue(new[] { "2", "3", "1" }, token).JobId);
-                Assert.Equal("3", queue.Dequeue(new[] { "3", "1", "2" }, token).JobId);
+                Assert.Equal("1", queue.Dequeue(new[] {"1", "2", "3"}, token).JobId);
+                Assert.Equal("2", queue.Dequeue(new[] {"2", "3", "1"}, token).JobId);
+                Assert.Equal("3", queue.Dequeue(new[] {"3", "1", "2"}, token).JobId);
             });
         }
 
@@ -161,13 +161,13 @@ values (@jobId, @queue) returning ""id""";
             // Arrange
             UseConnection(connection =>
             {
-                var id = (int)connection.Query(
+                var id = (int) connection.Query(
                     arrangeSql,
-                    new { jobId = 1, queue = "default" }).Single().id;
+                    new {jobId = 1, queue = "default"}).Single().id;
                 var queue = CreateJobQueue(connection);
 
                 // Act
-                var payload = (PostgreSqlFetchedJob)queue.Dequeue(
+                var payload = (PostgreSqlFetchedJob) queue.Dequeue(
                     DefaultQueues,
                     CreateTimingOutCancellationToken());
 
@@ -206,7 +206,7 @@ select i.""id"", @queue from i;
             {
                 connection.Execute(
                     arrangeSql,
-                    new { invocationData = "", arguments = "", queue = "default" });
+                    new {invocationData = "", arguments = "", queue = "default"});
                 var queue = CreateJobQueue(connection);
 
                 // Act
@@ -219,7 +219,7 @@ select i.""id"", @queue from i;
 
                 var fetchedAt = connection.Query<DateTime?>(
                     @"select ""fetchedat"" from """ + GetSchemaName() + @""".""jobqueue"" where ""jobid"" = @id",
-                    new { id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture) }).Single();
+                    new {id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture)}).Single();
 
                 Assert.NotNull(fetchedAt);
                 Assert.True(fetchedAt > DateTime.UtcNow.AddMinutes(-1));
@@ -315,7 +315,7 @@ select i.""id"", @queue from i;
                 // Assert
                 var otherJobFetchedAt = connection.Query<DateTime?>(
                     @"select ""fetchedat"" from """ + GetSchemaName() + @""".""jobqueue"" where ""jobid"" <> @id",
-                    new { id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture) }).Single();
+                    new {id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture)}).Single();
 
                 Assert.Null(otherJobFetchedAt);
             });
@@ -349,7 +349,7 @@ select i.""id"", @queue from i;
 
                 connection.Execute(
                     arrangeSql,
-                    new { queue = "critical", invocationData = "", arguments = "" });
+                    new {queue = "critical", invocationData = "", arguments = ""});
 
                 Assert.Throws<OperationCanceledException>(
                     () => queue.Dequeue(
@@ -381,7 +381,7 @@ insert into """ + GetSchemaName() + @""".""jobqueue"" (""jobid"", ""queue"")
 select i.""id"", @queue from i;
 ";
 
-            var queueNames = new[] { "default", "critical" };
+            var queueNames = new[] {"default", "critical"};
 
             UseConnection(connection =>
             {
@@ -395,14 +395,14 @@ select i.""id"", @queue from i;
 
                 var queue = CreateJobQueue(connection);
 
-                var queueFirst = (PostgreSqlFetchedJob)queue.Dequeue(
+                var queueFirst = (PostgreSqlFetchedJob) queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
                 Assert.NotNull(queueFirst.JobId);
                 Assert.Contains(queueFirst.Queue, queueNames);
 
-                var queueLast = (PostgreSqlFetchedJob)queue.Dequeue(
+                var queueLast = (PostgreSqlFetchedJob) queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 

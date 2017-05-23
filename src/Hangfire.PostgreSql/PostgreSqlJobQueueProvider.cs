@@ -25,11 +25,11 @@ using System.Data;
 namespace Hangfire.PostgreSql
 {
 #if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-	public
+    public
 #else
 	internal
 #endif
-	class PostgreSqlJobQueueProvider : IPersistentJobQueueProvider
+        class PostgreSqlJobQueueProvider : IPersistentJobQueueProvider
     {
         private readonly PostgreSqlStorageOptions _options;
 
@@ -39,7 +39,10 @@ namespace Hangfire.PostgreSql
             _options = options;
         }
 
-        public PostgreSqlStorageOptions Options { get { return _options; } }
+        public PostgreSqlStorageOptions Options
+        {
+            get { return _options; }
+        }
 
         public IPersistentJobQueue GetJobQueue(IDbConnection connection)
         {
