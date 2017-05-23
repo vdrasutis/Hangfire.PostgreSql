@@ -186,8 +186,8 @@ namespace Hangfire.PostgreSql
                     Job = job,
                     Result = stateData.ContainsKey("Result") ? stateData["Result"] : null,
                     TotalDuration = stateData.ContainsKey("PerformanceDuration") && stateData.ContainsKey("Latency")
-                        ? (long?) long.Parse(stateData["PerformanceDuration"]) +
-                          (long?) long.Parse(stateData["Latency"])
+                        ? (long?)long.Parse(stateData["PerformanceDuration"]) +
+                          (long?)long.Parse(stateData["Latency"])
                         : null,
                     SucceededAt = JobHelper.DeserializeNullableDateTime(stateData["SucceededAt"])
                 }));
@@ -213,7 +213,7 @@ namespace Hangfire.PostgreSql
             {
                 var tuples = _queueProviders
                     .Select(x => x.GetJobQueueMonitoringApi(connection))
-                    .SelectMany(x => x.GetQueues(), (monitoring, queue) => new {Monitoring = monitoring, Queue = queue})
+                    .SelectMany(x => x.GetQueues(), (monitoring, queue) => new { Monitoring = monitoring, Queue = queue })
                     .OrderBy(x => x.Queue)
                     .ToArray();
 
@@ -290,7 +290,7 @@ WHERE ""jobid"" = @id
 ORDER BY ""id"" DESC;
 ";
                 using (var multi = connection.QueryMultiple(sql,
-                    new {id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture)}))
+                    new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) }))
                 {
                     var job = multi.Read<SqlJob>().SingleOrDefault();
                     if (job == null) return null;
@@ -333,9 +333,7 @@ ORDER BY ""id"" DESC;
 
         public StatisticsDto GetStatistics()
         {
-            return UseConnection(connection =>
-            {
-                var sql = $@"
+            var sql = $@"
 SELECT ""statename"" ""State"", COUNT(""id"") ""Count"" 
 FROM ""{_options.SchemaName}"".""job""
 WHERE ""statename"" IS NOT NULL
@@ -356,11 +354,12 @@ SELECT COUNT(*)
 FROM ""{_options.SchemaName}"".""set"" 
 WHERE ""key"" = 'recurring-jobs';
 ";
-
+            return UseConnection(connection =>
+            {
                 var stats = new StatisticsDto();
-                using (var multi = connection.QueryMultiple(sql))
+                using (var gridReader = connection.QueryMultiple(sql))
                 {
-                    var countByStates = multi.Read().ToDictionary(x => x.State, x => x.Count);
+                    var countByStates = gridReader.Read().ToDictionary(x => x.State, x => x.Count);
 
                     long GetCountIfExists(string name) => countByStates.ContainsKey(name) ? countByStates[name] : 0;
 
@@ -369,12 +368,12 @@ WHERE ""key"" = 'recurring-jobs';
                     stats.Processing = GetCountIfExists(ProcessingState.StateName);
                     stats.Scheduled = GetCountIfExists(ScheduledState.StateName);
 
-                    stats.Servers = multi.Read<long>().Single();
+                    stats.Servers = gridReader.Read<long>().Single();
 
-                    stats.Succeeded = multi.Read<long?>().SingleOrDefault() ?? 0;
-                    stats.Deleted = multi.Read<long?>().SingleOrDefault() ?? 0;
+                    stats.Succeeded = gridReader.Read<long?>().SingleOrDefault() ?? 0;
+                    stats.Deleted = gridReader.Read<long?>().SingleOrDefault() ?? 0;
 
-                    stats.Recurring = multi.Read<long>().Single();
+                    stats.Recurring = gridReader.Read<long>().Single();
                 }
 
                 stats.Queues = _queueProviders
@@ -385,35 +384,19 @@ WHERE ""key"" = 'recurring-jobs';
             });
         }
 
-        private Dictionary<DateTime, long> GetHourlyTimelineStats(
-            NpgsqlConnection connection,
-            string type)
+        private Dictionary<DateTime, long> GetHourlyTimelineStats(NpgsqlConnection connection, string type)
         {
             var endDate = DateTime.UtcNow;
-            var dates = new List<DateTime>();
-            for (var i = 0; i < 24; i++)
-            {
-                dates.Add(endDate);
-                endDate = endDate.AddHours(-1);
-            }
-
+            var dates = Enumerable.Range(0, 24).Select(i => endDate.AddHours(-i)).ToList();
             var keyMaps = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd-HH}", x => x);
 
             return GetTimelineStats(connection, keyMaps);
         }
 
-        private Dictionary<DateTime, long> GetTimelineStats(
-            NpgsqlConnection connection,
-            string type)
+        private Dictionary<DateTime, long> GetTimelineStats(NpgsqlConnection connection, string type)
         {
             var endDate = DateTime.UtcNow.Date;
-            var dates = new List<DateTime>();
-
-            for (var i = 0; i < 7; i++)
-            {
-                dates.Add(endDate);
-                endDate = endDate.AddDays(-1);
-            }
+            var dates = Enumerable.Range(0, 7).Select(i => endDate.AddDays(-i)).ToList();
             var keyMaps = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd}", x => x);
 
             return GetTimelineStats(connection, keyMaps);
@@ -431,9 +414,9 @@ GROUP BY ""key"";
 
             var valuesMap = connection.Query(
                     query,
-                    new {keys = keyMaps.Keys.ToList()})
+                    new { keys = keyMaps.Keys.ToList() })
                 .ToList()
-                .ToDictionary(x => (string) x.key, x => (long) x.count);
+                .ToDictionary(x => (string)x.key, x => (long)x.count);
 
             foreach (var key in keyMaps.Keys)
             {
@@ -478,7 +461,7 @@ AND jq.""fetchedat"" IS NULL;
 
             var jobs = connection.Query<SqlJob>(
                     enqueuedJobsSql,
-                    new {jobIds = jobIds.ToList()})
+                    new { jobIds = jobIds.ToList() })
                 .ToList();
 
             return DeserializeJobs(
@@ -503,7 +486,7 @@ WHERE ""statename"" = @state;
 
             var count = connection.Query<long>(
                     sqlQuery,
-                    new {state = stateName})
+                    new { state = stateName })
                 .Single();
 
             return count;
@@ -539,7 +522,7 @@ LIMIT @count OFFSET @start;
 
             var jobs = connection.Query<SqlJob>(
                     jobsSql,
-                    new {stateName = stateName, start = from, count = count})
+                    new { stateName = stateName, start = from, count = count })
                 .ToList();
 
             return DeserializeJobs(jobs, selector);
@@ -579,7 +562,7 @@ AND ""jq"".""fetchedat"" IS NOT NULL;
 
             var jobs = connection.Query<SqlJob>(
                     fetchedJobsSql,
-                    new {jobIds = jobIds.ToList()})
+                    new { jobIds = jobIds.ToList() })
                 .ToList();
 
             var result = new List<KeyValuePair<string, FetchedJobDto>>(jobs.Count);

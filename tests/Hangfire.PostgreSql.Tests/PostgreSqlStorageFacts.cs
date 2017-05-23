@@ -18,7 +18,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenConnectionStringIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlStorage(nameOrConnectionString: null));
+                () => new PostgreSqlStorage(connectionString: null));
 
             Assert.Equal("nameOrConnectionString", exception.ParamName);
         }

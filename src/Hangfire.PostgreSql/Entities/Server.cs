@@ -24,7 +24,7 @@ using Hangfire.PostgreSql.Properties;
 
 namespace Hangfire.PostgreSql.Entities
 {
-    [UsedImplicitly]
+    [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
     internal class Server
     {
         public string Id { get; set; }

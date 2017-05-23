@@ -115,6 +115,7 @@ WHERE ""id"" IN (
 
         private void AggregateCounters(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var processedCounter in ProcessedCounters)
             {
                 AggregateCounter(processedCounter);

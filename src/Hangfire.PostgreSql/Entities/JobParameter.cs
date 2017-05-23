@@ -23,7 +23,7 @@ using Hangfire.PostgreSql.Properties;
 
 namespace Hangfire.PostgreSql.Entities
 {
-    [UsedImplicitly]
+    [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
     internal class JobParameter
     {
         public int JobId { get; set; }

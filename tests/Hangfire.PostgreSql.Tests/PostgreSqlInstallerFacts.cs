@@ -25,7 +25,6 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Null(ex);
         }
 
-
         private static void UseConnection(Action<NpgsqlConnection> action)
         {
             using (var connection = ConnectionUtils.CreateConnection())

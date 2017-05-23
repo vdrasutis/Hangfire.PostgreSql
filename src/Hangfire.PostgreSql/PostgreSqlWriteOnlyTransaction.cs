@@ -34,21 +34,24 @@ namespace Hangfire.PostgreSql
 {
     public class PostgreSqlWriteOnlyTransaction : JobStorageTransaction
     {
-        private readonly Queue<Action<NpgsqlConnection, NpgsqlTransaction>> _commandQueue
-            = new Queue<Action<NpgsqlConnection, NpgsqlTransaction>>();
-
         private readonly NpgsqlConnection _connection;
         private readonly PersistentJobQueueProviderCollection _queueProviders;
         private readonly PostgreSqlStorageOptions _options;
+        private readonly Queue<Action<NpgsqlConnection, NpgsqlTransaction>> _commandQueue;
 
         public PostgreSqlWriteOnlyTransaction(
             NpgsqlConnection connection,
             PostgreSqlStorageOptions options,
             PersistentJobQueueProviderCollection queueProviders)
         {
-            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-            _queueProviders = queueProviders ?? throw new ArgumentNullException(nameof(queueProviders));
+            Guard.ThrowIfNull(connection, nameof(connection));
+            Guard.ThrowIfNull(options, nameof(options));
+            Guard.ThrowIfNull(queueProviders, nameof(queueProviders));
+
+            _connection = connection;
+            _options = options;
+            _queueProviders = queueProviders;
+            _commandQueue = new Queue<Action<NpgsqlConnection, NpgsqlTransaction>>();
         }
 
         public override void Dispose()

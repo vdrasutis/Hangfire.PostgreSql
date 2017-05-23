@@ -8,11 +8,13 @@ using Npgsql;
 namespace Hangfire.PostgreSql
 {
     [DebuggerStepThrough]
-    public static class Guard
+    internal static class Guard
     {
         private const string EnlistIsNotAvailableExceptionMessage =
                 "Npgsql is not fully compatible with TransactionScope yet, only connections without Enlist = true are accepted."
             ;
+
+        private const string HostHasNotFoundExceptionMessage = "Invalid Postgres connection string: host has not found";
 
         [ContractAnnotation("condition:false => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -59,6 +61,14 @@ namespace Hangfire.PostgreSql
         {
             if (String.IsNullOrWhiteSpace(@string))
                 throw new ArgumentException("Parameter cannot be null or whitespace string", argumentName);
+        }
+
+        public static void ThrowIfConnectionStringIsInvalid([NotNull] string connectionString)
+        {
+            ThrowIfNull(connectionString, nameof(connectionString));
+            var connectionStringBuilder = new NpgsqlConnectionStringBuilder(connectionString);
+            if (connectionStringBuilder.Host == null) throw new ArgumentException(HostHasNotFoundExceptionMessage);
+            if (connectionStringBuilder.Enlist) throw new ArgumentException(EnlistIsNotAvailableExceptionMessage);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

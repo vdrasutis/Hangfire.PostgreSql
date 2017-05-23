@@ -21,6 +21,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Hangfire.Logging;
 using Hangfire.Server;
 using Hangfire.Storage;
@@ -31,53 +32,44 @@ namespace Hangfire.PostgreSql
     public class PostgreSqlStorage : JobStorage
     {
         private readonly Lazy<NpgsqlConnection> _lazyConnection;
-        private readonly NpgsqlConnection _existingConnection;
         private readonly PostgreSqlStorageOptions _options;
         private readonly string _connectionString;
-
-        public PostgreSqlStorage(string nameOrConnectionString)
-            : this(nameOrConnectionString, new PostgreSqlStorageOptions())
-        {
-        }
+        private string _storageInfo;
 
         /// <summary>
         /// Initializes PostgreSqlStorage from the provided PostgreSqlStorageOptions and either the provided connection
         /// string or the connection string with provided name pulled from the application config file.       
         /// </summary>
-        /// <param name="nameOrConnectionString">Either a SQL Server connection string or the name of 
-        /// a SQL Server connection string located in the connectionStrings node in the application config</param>
+        /// <param name="connectionString">A Postgres connection string</param>
         /// <param name="options"></param>
-        /// <exception cref="ArgumentNullException"><paramref name="nameOrConnectionString"/> argument is null.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> argument is null.</exception>
         /// <exception cref="ArgumentNullException"><paramref name="options"/> argument is null.</exception>
-        /// <exception cref="ArgumentException"><paramref name="nameOrConnectionString"/> argument is neither 
-        /// a valid SQL Server connection string nor the name of a connection string in the application
-        /// config file.</exception>
-        public PostgreSqlStorage(string nameOrConnectionString, PostgreSqlStorageOptions options)
+        /// <exception cref="ArgumentException"><paramref name="connectionString"/> argument is a valid 
+        /// Postgres connection string </exception>
+        public PostgreSqlStorage(string connectionString, PostgreSqlStorageOptions options)
         {
-            Guard.ThrowIfNull(nameOrConnectionString, nameof(nameOrConnectionString));
+            Guard.ThrowIfNull(connectionString, nameof(connectionString));
             Guard.ThrowIfNull(options, nameof(options));
+            Guard.ThrowIfConnectionStringIsInvalid(connectionString);
 
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _connectionString = connectionString;
+            _options = options;
+            _lazyConnection = new Lazy<NpgsqlConnection>(() => new NpgsqlConnection(_connectionString), LazyThreadSafetyMode.ExecutionAndPublication);
+            Initialize();
+        }
 
-            if (IsConnectionString(nameOrConnectionString))
-            {
-                _connectionString = nameOrConnectionString;
-            }
-            else
-            {
-                throw new ArgumentException(
-                    $"Could not find connection string with name '{nameOrConnectionString}' in application config file");
-            }
-
-            if (options.PrepareSchemaIfNecessary)
-            {
-                using (var connection = CreateAndOpenConnection())
-                {
-                    PostgreSqlObjectsInstaller.Install(connection, options.SchemaName);
-                }
-            }
-
-            InitializeQueueProviders();
+        /// <summary>
+        /// Initializes PostgreSqlStorage with default PostgreSqlStorageOptions and either the provided connection
+        /// string or the connection string with provided name pulled from the application config file.
+        /// </summary>
+        /// <param name="connectionString">A Postgres connection string</param>
+        /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> argument is null.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="options"/> argument is null.</exception>
+        /// <exception cref="ArgumentException"><paramref name="connectionString"/> argument is a valid 
+        /// Postgres connection string </exception>
+        public PostgreSqlStorage(string connectionString)
+            : this(connectionString, new PostgreSqlStorageOptions())
+        {
         }
 
         /// <summary>
@@ -93,40 +85,48 @@ namespace Hangfire.PostgreSql
             Guard.ThrowIfNull(options, nameof(options));
             Guard.ThrowIfConnectionContainsEnlist(existingConnection);
 
-            _existingConnection = existingConnection;
+            _connectionString = existingConnection.ConnectionString;
+            _lazyConnection = new Lazy<NpgsqlConnection>(() => existingConnection);
             _options = options;
-
-            InitializeQueueProviders();
+            Initialize();
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PostgreSqlStorage"/> class with
+        /// explicit instance of the <see cref="NpgsqlConnection"/> class that will be used
+        /// to query the data.
+        /// </summary>
+        /// <param name="existingConnection">Existing connection</param>
         public PostgreSqlStorage(NpgsqlConnection existingConnection)
+            : this(existingConnection, new PostgreSqlStorageOptions())
         {
-            Guard.ThrowIfNull(existingConnection, nameof(existingConnection));
-            Guard.ThrowIfConnectionContainsEnlist(existingConnection);
+        }
 
-            _lazyConnection = new Lazy<NpgsqlConnection>(() => existingConnection);
-            _existingConnection = existingConnection;
-            _options = new PostgreSqlStorageOptions();
+        private void Initialize()
+        {
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+            _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {_options.SchemaName}";
 
-            InitializeQueueProviders();
+            if (_options.PrepareSchemaIfNecessary)
+            {
+                PostgreSqlObjectsInstaller.Install(_lazyConnection.Value, _options.SchemaName);
+            }
+
+            var defaultQueueProvider = new PostgreSqlJobQueueProvider(_options);
+            QueueProviders = new PersistentJobQueueProviderCollection(defaultQueueProvider);
         }
 
         public PersistentJobQueueProviderCollection QueueProviders { get; private set; }
 
         public override IMonitoringApi GetMonitoringApi()
-        {
-            return new PostgreSqlMonitoringApi(_existingConnection, _options, QueueProviders);
-        }
+            => new PostgreSqlMonitoringApi(_lazyConnection.Value, _options, QueueProviders);
 
         public override IStorageConnection GetConnection()
-        {
-            var connection = _existingConnection ?? CreateAndOpenConnection();
-            return new PostgreSqlConnection(connection, QueueProviders, _options, _existingConnection == null);
-        }
+            => new PostgreSqlConnection(_lazyConnection.Value, QueueProviders, _options, _lazyConnection.Value == null);
 
         public override IEnumerable<IServerComponent> GetComponents()
         {
-            return new[] {new ExpirationManager(this, _options)};
+            return new[] { new ExpirationManager(this, _options) };
         }
 
         public override void WriteOptionsToLog(ILog logger)
@@ -137,45 +137,6 @@ namespace Hangfire.PostgreSql
             logger.InfoFormat("    Distributed lock timeout: {0}.", _options.DistributedLockTimeout);
         }
 
-        public override string ToString()
-        {
-            const string canNotParseMessage = "<Connection string can not be parsed>";
-
-            try
-            {
-                var builder = new NpgsqlConnectionStringBuilder(_connectionString);
-                var info =
-                    $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {_options.SchemaName}";
-                return info;
-            }
-            catch (Exception)
-            {
-                return canNotParseMessage;
-            }
-        }
-
-        private NpgsqlConnection CreateAndOpenConnection()
-        {
-            var connectionStringBuilder = new NpgsqlConnectionStringBuilder(_connectionString)
-            {
-                Enlist = false //Npgsql is not fully compatible with TransactionScope yet.
-            };
-
-            var connection = new NpgsqlConnection(connectionStringBuilder.ToString());
-            connection.Open();
-
-            return connection;
-        }
-
-        private void InitializeQueueProviders()
-        {
-            var defaultQueueProvider = new PostgreSqlJobQueueProvider(_options);
-            QueueProviders = new PersistentJobQueueProviderCollection(defaultQueueProvider);
-        }
-
-        private bool IsConnectionString(string nameOrConnectionString)
-        {
-            return nameOrConnectionString.Contains(";");
-        }
+        public override string ToString() => _storageInfo;
     }
 }
