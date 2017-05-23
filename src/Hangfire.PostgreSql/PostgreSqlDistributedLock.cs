@@ -27,12 +27,7 @@ using Dapper;
 
 namespace Hangfire.PostgreSql
 {
-#if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-    public
-#else
-	internal
-#endif
-    sealed class PostgreSqlDistributedLock : IDisposable
+    public sealed class PostgreSqlDistributedLock : IDisposable
     {
         private readonly string _resource;
         private readonly IDbConnection _connection;
@@ -46,7 +41,7 @@ namespace Hangfire.PostgreSql
             _resource = resource;
             _connection = connection ?? throw new ArgumentNullException(nameof(connection));
             _options = options ?? throw new ArgumentNullException(nameof(options));
-            
+
             PostgreSqlDistributedLock_Init_Transaction(resource, timeout, connection, options);
         }
 
@@ -131,54 +126,6 @@ WHERE NOT EXISTS (
             catch
             {
             }
-        }
-
-        private static void PostgreSqlDistributedLock_Init_UpdateCount(string resource, TimeSpan timeout, IDbConnection connection, PostgreSqlStorageOptions options)
-        {
-            var lockAcquiringTime = Stopwatch.StartNew();
-
-            bool tryAcquireLock = true;
-
-            while (tryAcquireLock)
-            {
-                try
-                {
-                    connection.Execute($@"
-INSERT INTO ""{options.SchemaName}"".""lock""(""resource"", ""updatecount"", ""acquired"") 
-SELECT @resource, 0, @acquired
-WHERE NOT EXISTS (
-    SELECT 1 FROM ""{options.SchemaName}"".""lock"" 
-    WHERE ""resource"" = @resource
-);
-", new
-                    {
-                        resource = resource,
-                        acquired = DateTime.UtcNow
-                    });
-                }
-                catch (Exception)
-                {
-                }
-
-                int rowsAffected = connection.Execute($@"UPDATE ""{options.SchemaName}"".""lock"" SET ""updatecount"" = 1 WHERE ""updatecount"" = 0");
-
-                if (rowsAffected > 0) return;
-
-                if (lockAcquiringTime.ElapsedMilliseconds > timeout.TotalMilliseconds)
-                    tryAcquireLock = false;
-                else
-                {
-                    int sleepDuration = (int)(timeout.TotalMilliseconds - lockAcquiringTime.ElapsedMilliseconds);
-                    if (sleepDuration > 1000) sleepDuration = 1000;
-                    if (sleepDuration > 0)
-                        Task.Delay(sleepDuration).Wait();
-                    else
-                        tryAcquireLock = false;
-                }
-            }
-
-            throw new PostgreSqlDistributedLockException(
-                $"Could not place a lock on the resource '{resource}': Lock timeout.");
         }
 
         public void Dispose()

@@ -25,7 +25,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
-using Hangfire.PostgreSql.Annotations;
+using Hangfire.PostgreSql.Properties;
 using Hangfire.Storage;
 using Npgsql;
 
@@ -88,19 +88,7 @@ RETURNING ""id"" AS ""Id"", ""jobid"" AS ""JobId"", ""queue"" AS ""Queue"", ""fe
                     out fetchedJob,
                     ex =>
                     {
-                        NpgsqlException npgSqlException = ex as NpgsqlException;
-                        PostgresException postgresException = ex as PostgresException;
-#if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-                        bool smoothException = false;
-#else
-                        bool smoothException = npgSqlException?.ErrorCode == 40001;
-#endif
-                        if (postgresException != null && !smoothException)
-                        {
-                            if (postgresException.SqlState.Equals("40001"))
-                                smoothException = true;
-                        }
-
+                        var smoothException = ex is PostgresException postgresException && postgresException.SqlState.Equals("40001");
                         return smoothException;
                     });
 

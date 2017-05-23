@@ -35,16 +35,16 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlMonitoringApi : IMonitoringApi
     {
-        private readonly string _connectionString;
+        private readonly NpgsqlConnection _connection;
         private readonly PostgreSqlStorageOptions _options;
         private readonly PersistentJobQueueProviderCollection _queueProviders;
 
         public PostgreSqlMonitoringApi(
-            string connectionString,
+            NpgsqlConnection connection,
             PostgreSqlStorageOptions options,
             PersistentJobQueueProviderCollection queueProviders)
         {
-            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _connection = connection ?? throw new ArgumentNullException(nameof(connection));
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _queueProviders = queueProviders ?? throw new ArgumentNullException(nameof(queueProviders));
         }
@@ -274,8 +274,6 @@ namespace Hangfire.PostgreSql
         {
             return UseConnection(connection =>
             {
-
-
                 string sql = @"
 SELECT ""id"" ""Id"", ""invocationdata"" ""InvocationData"", ""arguments"" ""Arguments"", ""createdat"" ""CreatedAt"", ""expireat"" ""ExpireAt"" 
 FROM """ + _options.SchemaName + @""".""job"" 
@@ -461,12 +459,7 @@ GROUP BY ""key"";
 
         private T UseConnection<T>(Func<NpgsqlConnection, T> action)
         {
-            using (var connection = new NpgsqlConnection(_connectionString))
-            {
-                connection.Open();
-                var result = action(connection);
-                return result;
-            }
+            return action(_connection);
         }
 
         private JobList<EnqueuedJobDto> EnqueuedJobs(NpgsqlConnection connection, IEnumerable<int> jobIds)

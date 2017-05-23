@@ -17,10 +17,12 @@
     <Version>1.4.7.1</Version>
     <FileVersion>1.4.7.1</FileVersion>
     <AssemblyVersion>1.4.7.1</AssemblyVersion>
+    <NeutralLanguage />
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="*.sql" Exclude="bin\**;obj\**;**\*.xproj;packages\**;@(EmbeddedResource)" />
+    <EmbeddedResource Include="Schema\Install.v8.sql" Exclude="bin\**;obj\**;**\*.xproj;packages\**;@(EmbeddedResource)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,6 +40,10 @@
     <Reference Include="System.Configuration" />
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Schema\" />
   </ItemGroup>
 
 </Project>

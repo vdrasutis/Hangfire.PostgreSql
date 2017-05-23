@@ -29,21 +29,12 @@ using Hangfire.Server;
 
 namespace Hangfire.PostgreSql
 {
-#if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-    public
-#else
-	internal
-#endif
-    class ExpirationManager : IBackgroundProcess, IServerComponent
+    public class ExpirationManager : IBackgroundProcess, IServerComponent
     {
         private static readonly TimeSpan DelayBetweenPasses = TimeSpan.FromSeconds(1);
         private const int NumberOfRecordsInSinglePass = 1000;
 
-#if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
         private static readonly ILog Logger = LogProvider.GetLogger(typeof(ExpirationManager));
-#else
-        private static readonly ILog Logger = LogProvider.GetCurrentClassLogger();
-#endif
 
         private static readonly string[] ProcessedCounters =
         {

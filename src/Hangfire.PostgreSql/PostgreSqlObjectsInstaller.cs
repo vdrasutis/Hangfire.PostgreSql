@@ -21,24 +21,17 @@
 
 using System;
 using System.Data;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
-using Hangfire.Logging;
-using Npgsql;
 using System.Resources;
 using Dapper;
+using Hangfire.Logging;
+using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-#if (NETCORE1 || NETCORE50 || NETSTANDARD1_5 || NETSTANDARD1_6)
-    public
-#else
-    [ExcludeFromCodeCoverage]
-	internal
-#endif
-    static class PostgreSqlObjectsInstaller
+    internal static class PostgreSqlObjectsInstaller
     {
         private static readonly ILog Log = LogProvider.GetLogger(typeof(PostgreSqlStorage));
 
@@ -61,7 +54,7 @@ namespace Hangfire.PostgreSql
                     {
                         script = GetStringResource(
                           typeof(PostgreSqlObjectsInstaller).GetTypeInfo().Assembly,
-                          $"Hangfire.PostgreSql.Install.v{version.ToString(CultureInfo.InvariantCulture)}.sql");
+                          $"Hangfire.PostgreSql.Schema.Install.v{version.ToString(CultureInfo.InvariantCulture)}.sql");
                     }
                     catch (MissingManifestResourceException)
                     {
