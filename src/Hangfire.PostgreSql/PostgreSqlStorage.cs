@@ -122,12 +122,10 @@ namespace Hangfire.PostgreSql
             => new PostgreSqlMonitoringApi(_lazyConnection.Value, _options, QueueProviders);
 
         public override IStorageConnection GetConnection()
-            => new PostgreSqlConnection(_lazyConnection.Value, QueueProviders, _options, _lazyConnection.Value == null);
+            => new PostgreSqlConnection(_lazyConnection.Value, QueueProviders, _options);
 
-        public override IEnumerable<IServerComponent> GetComponents()
-        {
-            return new[] { new ExpirationManager(this, _options) };
-        }
+        public override IEnumerable<IServerComponent> GetComponents() 
+            => new[] { new ExpirationManager(this, _options) };
 
         public override void WriteOptionsToLog(ILog logger)
         {
