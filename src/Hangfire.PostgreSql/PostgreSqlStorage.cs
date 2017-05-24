@@ -107,6 +107,11 @@ namespace Hangfire.PostgreSql
             "PostgreSql Version",
             page => GetMetricByQuery(page, @"SHOW server_version;"));
 
+        public static readonly DashboardMetric CacheHitsPerRead = new DashboardMetric(
+            "cache:hitratio",
+            "Cache Hits Per Read",
+            page => GetMetricByQuery(page, @"SELECT ROUND(SUM(blks_hit) / SUM(blks_read)) FROM pg_stat_database;"));
+
         private static Metric GetMetricByQuery(RazorPage page, string query)
         {
             var storage = page.Storage as PostgreSqlStorage;
