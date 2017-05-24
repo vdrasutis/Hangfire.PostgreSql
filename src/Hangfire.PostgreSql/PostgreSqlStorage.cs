@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Dapper;
+using Hangfire.Dashboard;
 using Hangfire.Logging;
 using Hangfire.Server;
 using Hangfire.Storage;
@@ -10,7 +12,7 @@ namespace Hangfire.PostgreSql
     public class PostgreSqlStorage : JobStorage
     {
         private readonly PostgreSqlStorageOptions _options;
-        private readonly PostgreSqlConnectionProvider _postgreSqlConnectionProvider;
+        private readonly PostgreSqlConnectionProvider _connectionProvider;
         private readonly string _storageInfo;
 
         /// <summary>
@@ -43,32 +45,36 @@ namespace Hangfire.PostgreSql
             Guard.ThrowIfConnectionStringIsInvalid(connectionString);
 
             _options = options;
-            _postgreSqlConnectionProvider = new PostgreSqlConnectionProvider(connectionString, _options);
+            _connectionProvider = new PostgreSqlConnectionProvider(connectionString, _options);
 
             var builder = new NpgsqlConnectionStringBuilder(connectionString);
             _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {_options.SchemaName}";
-            QueueProviders = new PersistentJobQueueProviderCollection(new PostgreSqlJobQueueProvider(_postgreSqlConnectionProvider, _options));
+            QueueProviders = new PersistentJobQueueProviderCollection(new PostgreSqlJobQueueProvider(_connectionProvider, _options));
 
             if (_options.PrepareSchemaIfNecessary)
             {
-                _postgreSqlConnectionProvider.Execute(
+                _connectionProvider.Execute(
                     connection => PostgreSqlObjectsInstaller.Install(connection, _options.SchemaName));
             }
         }
 
         internal PersistentJobQueueProviderCollection QueueProviders { get; }
 
+        internal IPostgreSqlConnectionProvider ConnectionProvider => _connectionProvider;
+
+        internal PostgreSqlStorageOptions Options => _options;
+
         public override IMonitoringApi GetMonitoringApi()
-            => new PostgreSqlMonitoringApi(_postgreSqlConnectionProvider, _options, QueueProviders);
+            => new PostgreSqlMonitoringApi(_connectionProvider, _options, QueueProviders);
 
         public override IStorageConnection GetConnection()
-            => new PostgreSqlConnection(_postgreSqlConnectionProvider, QueueProviders, _options);
+            => new PostgreSqlConnection(_connectionProvider, QueueProviders, _options);
 
         public override IEnumerable<IServerComponent> GetComponents()
             => new IServerComponent[]
             {
-                new ExpirationManager(_postgreSqlConnectionProvider, _options),
-                new CountersAggregationManager(_postgreSqlConnectionProvider, _options)
+                new ExpirationManager(_connectionProvider, _options),
+                new CountersAggregationManager(_connectionProvider, _options)
             };
 
         public override void WriteOptionsToLog(ILog logger)
@@ -80,5 +86,37 @@ namespace Hangfire.PostgreSql
         }
 
         public override string ToString() => _storageInfo;
+
+        public static readonly DashboardMetric MaxConnections = new DashboardMetric(
+            "connections:max",
+            "Max Connections",
+            page => GetMetricByQuery(page, @"SHOW max_connections;"));
+
+        public static readonly DashboardMetric ActiveConnections = new DashboardMetric(
+            "connections:active",
+            "Active Connections",
+            page => GetMetricByQuery(page, @"SELECT numbackends from pg_stat_database WHERE datname = current_database();"));
+
+        public static readonly DashboardMetric LocksCount = new DashboardMetric(
+            "locks:count",
+            "Locks Count",
+            page => GetMetricByQuery(page, @"SELECT COUNT(*) FROM pg_locks;"));
+
+        public static readonly DashboardMetric PostgreSqlServerVersion = new DashboardMetric(
+            "server:version",
+            "PostgreSql Version",
+            page => GetMetricByQuery(page, @"SHOW server_version;"));
+
+        private static Metric GetMetricByQuery(RazorPage page, string query)
+        {
+            var storage = page.Storage as PostgreSqlStorage;
+            if (storage == null) return new Metric("???");
+
+            using (var connectionHolder = storage.ConnectionProvider.AcquireConnection())
+            {
+                var serverVersion = connectionHolder.Connection.ExecuteScalar(query);
+                return new Metric(serverVersion?.ToString() ?? "???");
+            }
+        }
     }
 }
