@@ -1,7 +1,7 @@
 
 Hangfire.PostgreSql
 ===================
-[![Build status](https://ci.appveyor.com/api/projects/status/y9ret0yhlvdfnd8c?svg=true)](https://ci.appveyor.com/project/ahydrax/hangfire-postgresql)
+[![Build status](https://ci.appveyor.com/api/projects/status/n05446uxa1f5sjw3?svg=true)](https://ci.appveyor.com/project/ahydrax/hangfire-postgresql)
 [![NuGet](https://img.shields.io/nuget/v/Hangfire.PostgreSql.ahydrax.svg)](https://www.nuget.org/packages/Hangfire.PostgreSql.ahydrax/)
 [![GitHub license](https://img.shields.io/badge/license-GPL-blue.svg?style=flat)](https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/COPYING)
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/ahydrax.svg?style=social)](https://twitter.com/intent/tweet?text=Wow:&url=%5Bobject%20Object%5D)
