@@ -2,6 +2,9 @@
 Hangfire.PostgreSql
 ===================
 [![Build status](https://ci.appveyor.com/api/projects/status/y9ret0yhlvdfnd8c?svg=true)](https://ci.appveyor.com/project/ahydrax/hangfire-postgresql)
+[![NuGet](https://img.shields.io/nuget/v/Hangfire.PostgreSql.ahydrax.svg)](https://www.nuget.org/packages/Hangfire.PostgreSql.ahydrax/)
+[![GitHub license](https://img.shields.io/badge/license-GPL-blue.svg?style=flat)](https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/COPYING)
+[![Twitter](https://img.shields.io/twitter/url/https/twitter.com/ahydrax.svg?style=social)](https://twitter.com/intent/tweet?text=Wow:&url=%5Bobject%20Object%5D)
 
 This is an plugin to the Hangfire to enable PostgreSQL as a storage system.
 Read about hangfire here: https://github.com/HangfireIO/Hangfire#hangfire-
@@ -11,20 +14,28 @@ Instructions
 ------------
 Install Hangfire, see https://github.com/HangfireIO/Hangfire#installation
 
-Download all files from this repository, add the Hangfire.PostgreSql.csproj to your solution.
-Reference it in your project, and you are ready to go by using:
+Download source files and build your own binaries or use nuget package.
 
 ```csharp
 app.UseHangfireServer(new BackgroundJobServerOptions(), 
-  new PostgreSqlStorage("<connection string or its name>"));
+  new PostgreSqlStorage("<connection string>"));
 app.UseHangfireDashboard();
 ```
+
+Backward compatibility with original project
+-----------------
+* Connection string must be passed directly to constructor or bootstrapper method (it is no longer available to pass connection string name stored in ```app.config```;
+* Constructor with existing ```NpgsqlConnection``` is no longer available;
+* ```NpgsqlConnection``` pooling is not used now (used own pooling mechanism);
+* Removed parameter UseNativeDatabaseTransactions (transactions are used where needed and it can't be turned off);
+* Anything else I've already forgot.
 
 
 Related Projects
 -----------------
 
 * [Hangfire.Core](https://github.com/HangfireIO/Hangfire)
+* [Hangfire.Postgres original project](https://github.com/frankhommers/Hangfire.PostgreSql)
 
 License
 ========
