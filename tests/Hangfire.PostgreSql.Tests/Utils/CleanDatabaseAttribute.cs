@@ -4,8 +4,10 @@ using System.Reflection;
 using System.Threading;
 using Dapper;
 using Npgsql;
+using Xunit;
 using Xunit.Sdk;
 
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
 namespace Hangfire.PostgreSql.Tests.Utils
 {
     public class CleanDatabaseAttribute : BeforeAfterTestAttribute

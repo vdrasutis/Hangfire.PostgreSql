@@ -16,7 +16,7 @@ namespace Hangfire.PostgreSql.Tests.Utils
         private const string DefaultSchemaName = @"hangfire";
 
         private const string DefaultConnectionStringTemplate =
-            @"Server=127.0.0.1;Port=5432;Database=postgres;User Id=postgres;Password=password;";
+            @"Server=127.0.0.1;Port=5432;Database=postgres;User Id=postgres;Password=password;Pooling=false";
 
         private static readonly Lazy<IPostgreSqlConnectionProvider> LazyProvider
             = new Lazy<IPostgreSqlConnectionProvider>(
@@ -58,7 +58,7 @@ namespace Hangfire.PostgreSql.Tests.Utils
         {
             return new NpgsqlConnection(GetConnectionString());
         }
-        
+
         // TODO unify
         public static void UseConnection(Action<IPostgreSqlConnectionProvider, NpgsqlConnection> action)
         {

@@ -71,15 +71,17 @@ namespace Hangfire.PostgreSql
             NpgsqlConnection connection;
             while (!_connections.TryDequeue(out connection))
             {
-                CreateConnectionIfNeeded();
+                connection = CreateConnectionIfNeeded();
+                if (connection != null) return connection;
+
                 Task.Delay(5).Wait();
             }
             return connection;
         }
 
-        private void CreateConnectionIfNeeded()
+        private NpgsqlConnection CreateConnectionIfNeeded()
         {
-            if (_connectionsCreated >= _options.ConnectionsCount) return;
+            if (_connectionsCreated >= _options.ConnectionsCount) return null;
 
             NpgsqlConnection newConnection;
             try
@@ -94,7 +96,7 @@ namespace Hangfire.PostgreSql
             }
 
             Interlocked.Increment(ref _connectionsCreated);
-            _connections.Enqueue(newConnection);
+            return newConnection;
         }
 
         public void Dispose()

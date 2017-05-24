@@ -328,7 +328,7 @@ select i.""id"", @queue from i;
 
         private static CancellationToken CreateTimingOutCancellationToken()
         {
-            var source = new CancellationTokenSource(TimeSpan.FromSeconds(100));
+            var source = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             return source.Token;
         }
 

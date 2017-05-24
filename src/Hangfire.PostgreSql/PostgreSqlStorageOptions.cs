@@ -11,7 +11,7 @@ namespace Hangfire.PostgreSql
 
         public PostgreSqlStorageOptions()
         {
-            QueuePollInterval = TimeSpan.FromSeconds(15);
+            QueuePollInterval = TimeSpan.FromMilliseconds(300);
             InvisibilityTimeout = TimeSpan.FromMinutes(30);
             DistributedLockTimeout = TimeSpan.FromMinutes(10);
             ConnectionsCount = 10;
