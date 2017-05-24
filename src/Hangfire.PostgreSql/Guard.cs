@@ -11,10 +11,9 @@ namespace Hangfire.PostgreSql
     internal static class Guard
     {
         private const string EnlistIsNotAvailableExceptionMessage =
-                "Npgsql is not fully compatible with TransactionScope yet, only connections without Enlist = true are accepted."
-            ;
-
-        private const string HostHasNotFoundExceptionMessage = "Invalid Postgres connection string: host has not found";
+                "Npgsql is not fully compatible with TransactionScope yet, only connections without Enlist = true are accepted.";
+        private const string HostHasNotFoundExceptionMessage = "Invalid Postgres connection string: host has not found.";
+        private const string PoolingIsNotAvailableExceptionMessage = "Pooling=true can't be used in connection string.";
 
         [ContractAnnotation("condition:false => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -66,6 +65,7 @@ namespace Hangfire.PostgreSql
             var connectionStringBuilder = new NpgsqlConnectionStringBuilder(connectionString);
             if (connectionStringBuilder.Host == null) throw new ArgumentException(HostHasNotFoundExceptionMessage);
             if (connectionStringBuilder.Enlist) throw new ArgumentException(EnlistIsNotAvailableExceptionMessage);
+            if (connectionStringBuilder.Pooling) throw new ArgumentException(PoolingIsNotAvailableExceptionMessage);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
