@@ -14,7 +14,7 @@ Instructions
 ------------
 Install Hangfire, see https://github.com/HangfireIO/Hangfire#installation
 
-Download source files and build your own binaries or use nuget package.
+Download source files and build your own binaries or just use nuget package.
 
 ```csharp
 app.UseHangfireServer(new BackgroundJobServerOptions(), 
@@ -22,13 +22,24 @@ app.UseHangfireServer(new BackgroundJobServerOptions(),
 app.UseHangfireDashboard();
 ```
 
+Add metrics to Hangfire.Dashboard
+-----------------
+
+```csharp
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlStorage.MaxConnections);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlStorage.ActiveConnections);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlStorage.LocksCount);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlStorage.PostgreSqlServerVersion);
+```
+
 Backward compatibility with original project
 -----------------
+* Number of connections are limited now using ```PostgreSqlStorageOptions.ConnectionsCount``` setting;
 * Connection string must be passed directly to constructor or bootstrapper method (it is no longer available to pass connection string name stored in ```app.config```;
 * Constructor with existing ```NpgsqlConnection``` is no longer available;
 * ```NpgsqlConnection``` pooling is not used now (used own pooling mechanism);
 * Removed parameter UseNativeDatabaseTransactions (transactions are used where needed and it can't be turned off);
-* Anything else I've already forgot.
+* Anything else I've already forgotten.
 
 
 Related Projects
