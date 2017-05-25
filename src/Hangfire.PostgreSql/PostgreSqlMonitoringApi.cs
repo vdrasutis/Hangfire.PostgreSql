@@ -12,7 +12,6 @@ using Hangfire.Storage.Monitoring;
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-
     internal class PostgreSqlMonitoringApi : IMonitoringApi
     {
         private const string SucceededStateName = "succeeded";

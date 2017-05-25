@@ -7,7 +7,6 @@ using System.Threading;
 using Dapper;
 using Hangfire.Common;
 using Hangfire.PostgreSql.Entities;
-using Hangfire.PostgreSql.Properties;
 using Hangfire.Server;
 using Hangfire.Storage;
 
@@ -44,7 +43,7 @@ namespace Hangfire.PostgreSql
                 _connectionProvider,
                 _options);
 
-        public override IFetchedJob FetchNextJob([NotNull] string[] queues, CancellationToken cancellationToken)
+        public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
         {
             if (queues == null || queues.Length == 0) throw new ArgumentNullException(nameof(queues));
             return _queue.Dequeue(queues, cancellationToken);

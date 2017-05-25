@@ -1,9 +1,9 @@
 ﻿using System;
-using Hangfire.PostgreSql.Properties;
+using Hangfire.Annotations;
 
 namespace Hangfire.PostgreSql.Entities
 {
-    [UsedImplicitly]
+    [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
     internal class SqlState
     {
         public int JobId { get; set; }

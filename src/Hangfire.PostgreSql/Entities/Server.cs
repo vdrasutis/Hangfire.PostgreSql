@@ -1,5 +1,5 @@
 ﻿using System;
-using Hangfire.PostgreSql.Properties;
+using Hangfire.Annotations;
 
 namespace Hangfire.PostgreSql.Entities
 {

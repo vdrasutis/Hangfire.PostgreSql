@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using Hangfire.PostgreSql.Properties;
+using Hangfire.Annotations;
 using Npgsql;
 
 namespace Hangfire.PostgreSql
@@ -37,7 +37,7 @@ namespace Hangfire.PostgreSql
 
         [ContractAnnotation("argument:null => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIfNull([NoEnumeration] [NotNull] object argument, [NotNull] string argumentName)
+        public static void ThrowIfNull([NotNull] object argument, [NotNull] string argumentName)
         {
             if (argument == null)
                 throw new ArgumentNullException(argumentName);

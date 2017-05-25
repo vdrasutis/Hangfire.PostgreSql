@@ -3,9 +3,8 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
-using Hangfire.PostgreSql.Properties;
+using Hangfire.PostgreSql.Entities;
 using Hangfire.Storage;
-using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
@@ -23,7 +22,6 @@ namespace Hangfire.PostgreSql
             _options = options;
         }
 
-        [NotNull]
         public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
         {
             if (queues == null) throw new ArgumentNullException(nameof(queues));
@@ -91,16 +89,6 @@ VALUES (@jobId, @queue);
                 var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };
                 connectionHolder.Connection.Execute(query, parameters);
             }
-        }
-
-        [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-        private class FetchedJob
-        {
-            public int Id { get; set; }
-            public int JobId { get; set; }
-            public string Queue { get; set; }
-            public DateTime? FetchedAt { get; set; }
-            public int UpdateCount { get; set; }
         }
     }
 }
