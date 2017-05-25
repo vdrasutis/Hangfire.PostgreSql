@@ -26,7 +26,7 @@ Add metrics to Hangfire.Dashboard
 -----------------
 There are 6 different metrics you can use:
 
-![dashboard](dashboard.jpg)
+![dashboard](dashboard.png)
 
 ```csharp
 GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.MaxConnections);
