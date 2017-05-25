@@ -42,7 +42,8 @@ namespace Hangfire.PostgreSql
 
             using (var connectionHolder = storage.ConnectionProvider.AcquireConnection())
             {
-                var serverVersion = connectionHolder.Connection.ExecuteScalar(query);
+                var searchPathQuery = $"SET search_path = '{storage.Options.SchemaName}';";
+                var serverVersion = connectionHolder.Connection.ExecuteScalar(searchPathQuery + query);
                 return new Metric(serverVersion?.ToString() ?? "???");
             }
         }
