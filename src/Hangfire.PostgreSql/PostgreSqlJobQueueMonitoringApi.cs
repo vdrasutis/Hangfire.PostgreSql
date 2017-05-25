@@ -85,15 +85,15 @@ SELECT j.id ""Id"",
        s.name ""StateName"", 
        s.reason""StateReason"", 
        s.data ""StateData""
-FROM ""{_options.SchemaName}"".job j
+FROM ""{_options.SchemaName}"".jobqueue jq
+LEFT JOIN ""{_options.SchemaName}"".job j ON jq.jobid = j.id
 LEFT JOIN ""{_options.SchemaName}"".state s ON s.id = j.stateid
-LEFT JOIN ""{_options.SchemaName}"".jobqueue jq ON jq.jobid = j.id
 WHERE jq.fetchedat {fetchCondition}
 LIMIT {perPage} OFFSET {@from};";
 
         public (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue)
         {
-            string sqlQuery = @"
+            var sqlQuery = @"
 SELECT (
         SELECT COUNT(*) 
         FROM """ + _options.SchemaName + @""".""jobqueue"" 

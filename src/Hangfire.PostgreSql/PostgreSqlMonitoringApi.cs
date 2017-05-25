@@ -14,9 +14,6 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlMonitoringApi : IMonitoringApi
     {
-        private const string SucceededStateName = "succeeded";
-        private const string FailedStateName = "failed";
-
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly IPersistentJobQueueMonitoringApi _queueMonitoringApi;
         private readonly PostgreSqlStorageOptions _options;
@@ -41,7 +38,7 @@ namespace Hangfire.PostgreSql
             => _queueMonitoringApi.GetEnqueuedAndFetchedCount(queue).fetched ?? 0;
 
         public long FailedCount()
-            => GetNumberOfJobsByStateName(FailedStateName);
+            => GetNumberOfJobsByStateName(FailedState.StateName);
 
         public long ProcessingCount()
             => GetNumberOfJobsByStateName(ProcessingState.StateName);
@@ -67,10 +64,10 @@ namespace Hangfire.PostgreSql
                    });
 
         public IDictionary<DateTime, long> SucceededByDatesCount()
-            => GetTimelineStats(SucceededStateName);
+            => GetTimelineStats(SucceededState.StateName);
 
         public IDictionary<DateTime, long> FailedByDatesCount()
-            => GetTimelineStats(FailedStateName);
+            => GetTimelineStats(FailedState.StateName);
 
         public IList<ServerDto> Servers()
         {
@@ -102,7 +99,7 @@ namespace Hangfire.PostgreSql
         public JobList<FailedJobDto> FailedJobs(int @from, int count)
             => GetJobs(@from,
                    count,
-                   FailedStateName,
+                   FailedState.StateName,
                    (sqlJob, job, stateData) => new FailedJobDto
                    {
                        Job = job,
@@ -116,7 +113,7 @@ namespace Hangfire.PostgreSql
         public JobList<SucceededJobDto> SucceededJobs(int @from, int count)
             => GetJobs(@from,
                    count,
-                   SucceededStateName,
+                   SucceededState.StateName,
                    (sqlJob, job, stateData) => new SucceededJobDto
                    {
                        Job = job,
@@ -167,10 +164,10 @@ namespace Hangfire.PostgreSql
             => _queueMonitoringApi.FetchedJobs(queue, @from, perPage);
 
         public IDictionary<DateTime, long> HourlySucceededJobs()
-            => GetHourlyTimelineStats(SucceededStateName);
+            => GetHourlyTimelineStats(SucceededState.StateName);
 
         public IDictionary<DateTime, long> HourlyFailedJobs()
-            => GetHourlyTimelineStats(FailedStateName);
+            => GetHourlyTimelineStats(FailedState.StateName);
 
         public JobDetailsDto JobDetails(string jobId)
         {
@@ -229,7 +226,7 @@ ORDER BY id DESC;
         }
 
         public long SucceededListCount()
-            => GetNumberOfJobsByStateName(SucceededStateName);
+            => GetNumberOfJobsByStateName(SucceededState.StateName);
 
         public long DeletedListCount()
             => GetNumberOfJobsByStateName(DeletedState.StateName);
@@ -268,7 +265,7 @@ WHERE key = 'recurring-jobs';
                 long GetCountIfExists(string name) => countByStates.ContainsKey(name) ? countByStates[name] : 0;
 
                 stats.Enqueued = GetCountIfExists(EnqueuedState.StateName);
-                stats.Failed = GetCountIfExists(FailedStateName);
+                stats.Failed = GetCountIfExists(FailedState.StateName);
                 stats.Processing = GetCountIfExists(ProcessingState.StateName);
                 stats.Scheduled = GetCountIfExists(ScheduledState.StateName);
 
@@ -290,7 +287,7 @@ WHERE key = 'recurring-jobs';
         {
             var endDate = DateTime.UtcNow;
             var dates = Enumerable.Range(0, 24).Select(i => endDate.AddHours(-i)).ToList();
-            var keyMaps = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd-HH}", x => x);
+            var keyMaps = dates.ToDictionary(x => $"stats:{type.ToLowerInvariant()}:{x:yyyy-MM-dd-HH}", x => x);
             return GetTimelineStats(keyMaps);
         }
 
@@ -298,7 +295,7 @@ WHERE key = 'recurring-jobs';
         {
             var endDate = DateTime.UtcNow.Date;
             var dates = Enumerable.Range(0, 7).Select(i => endDate.AddDays(-i)).ToList();
-            var keyMaps = dates.ToDictionary(x => $"stats:{type}:{x:yyyy-MM-dd}", x => x);
+            var keyMaps = dates.ToDictionary(x => $"stats:{type.ToLowerInvariant()}:{x:yyyy-MM-dd}", x => x);
             return GetTimelineStats(keyMaps);
         }
 
