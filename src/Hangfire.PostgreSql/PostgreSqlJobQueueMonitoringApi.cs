@@ -26,8 +26,8 @@ namespace Hangfire.PostgreSql
         public IEnumerable<string> GetQueues()
         {
             string sqlQuery = $@"
-SELECT DISTINCT ""queue"" 
-FROM ""{_options.SchemaName}"".""jobqueue"";
+SELECT DISTINCT queue 
+FROM ""{_options.SchemaName}"".jobqueue;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -90,38 +90,6 @@ LEFT JOIN ""{_options.SchemaName}"".state s ON s.id = j.stateid
 LEFT JOIN ""{_options.SchemaName}"".jobqueue jq ON jq.jobid = j.id
 WHERE jq.fetchedat {fetchCondition}
 LIMIT {perPage} OFFSET {@from};";
-
-
-        public IEnumerable<int> GetEnqueuedJobIds(string queue, int @from, int perPage)
-        {
-            return GetQueuedOrFetchedJobIds(queue, false, @from, perPage);
-        }
-
-        private IEnumerable<int> GetQueuedOrFetchedJobIds(string queue, bool fetched, int @from, int perPage)
-        {
-            string sqlQuery = string.Format($@"
-SELECT j.""id"" 
-FROM ""{_options.SchemaName}"".""jobqueue"" jq
-LEFT JOIN ""{_options.SchemaName}"".""job"" j ON jq.""jobid"" = j.""id""
-WHERE jq.""queue"" = @queue 
-AND jq.""fetchedat"" {{0}}
-AND j.""id"" IS NOT NULL
-LIMIT @count OFFSET @start;
-", fetched ? "IS NOT NULL" : "IS NULL");
-
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
-            {
-                return connectionHolder.Connection.Query<int>(
-                        sqlQuery,
-                        new { queue = queue, start = @from, count = perPage })
-                    .ToList();
-            }
-        }
-
-        public IEnumerable<int> GetFetchedJobIds(string queue, int @from, int perPage)
-        {
-            return GetQueuedOrFetchedJobIds(queue, true, @from, perPage);
-        }
 
         public (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue)
         {

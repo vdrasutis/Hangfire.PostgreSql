@@ -339,7 +339,7 @@ GROUP BY key;
         {
             string sqlQuery = $@"
 SELECT COUNT(*) 
-FROM ""{_options.SchemaName}.job 
+FROM ""{_options.SchemaName}"".job 
 WHERE statename = @state;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
