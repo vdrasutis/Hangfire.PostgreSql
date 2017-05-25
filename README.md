@@ -24,12 +24,17 @@ app.UseHangfireDashboard();
 
 Add metrics to Hangfire.Dashboard
 -----------------
+There are 6 different metrics you can use:
+
+![dashboard](dashboard.jpg)
 
 ```csharp
-GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlStorage.MaxConnections);
-GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlStorage.ActiveConnections);
-GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlStorage.LocksCount);
-GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlStorage.PostgreSqlServerVersion);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.MaxConnections);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.ActiveConnections);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.DistributedLocksCount);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.PostgreSqlLocksCount);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.CacheHitsPerRead);
+GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.PostgreSqlServerVersion);
 ```
 
 Backward compatibility with original project
