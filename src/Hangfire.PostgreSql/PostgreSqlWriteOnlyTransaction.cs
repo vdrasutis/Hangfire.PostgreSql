@@ -13,23 +13,23 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlWriteOnlyTransaction : JobStorageTransaction
     {
-        private readonly PersistentJobQueueProviderCollection _queueProviders;
+        private readonly IPersistentJobQueue _queue;
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
         private readonly Queue<Action<NpgsqlConnection, NpgsqlTransaction>> _commandQueue;
 
         public PostgreSqlWriteOnlyTransaction(
             IPostgreSqlConnectionProvider connectionProvider,
-            PostgreSqlStorageOptions options,
-            PersistentJobQueueProviderCollection queueProviders)
+            IPersistentJobQueue queue,
+            PostgreSqlStorageOptions options)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
             Guard.ThrowIfNull(options, nameof(options));
-            Guard.ThrowIfNull(queueProviders, nameof(queueProviders));
+            Guard.ThrowIfNull(queue, nameof(queue));
 
             _connectionProvider = connectionProvider;
             _options = options;
-            _queueProviders = queueProviders;
+            _queue = queue;
             _commandQueue = new Queue<Action<NpgsqlConnection, NpgsqlTransaction>>();
         }
 
@@ -118,10 +118,7 @@ VALUES (@jobId, @name, @reason, @createdAt, @data);
 
         public override void AddToQueue(string queue, string jobId)
         {
-            var provider = _queueProviders.GetProvider(queue);
-            var persistentQueue = provider.GetJobQueue(_connectionProvider);
-
-            QueueCommand((con, trx) => persistentQueue.Enqueue(queue, jobId));
+            QueueCommand((con, trx) => _queue.Enqueue(queue, jobId));
         }
 
         public override void IncrementCounter(string key)

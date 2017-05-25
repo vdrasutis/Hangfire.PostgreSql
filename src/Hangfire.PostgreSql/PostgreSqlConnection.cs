@@ -17,25 +17,25 @@ namespace Hangfire.PostgreSql
     internal class PostgreSqlConnection : JobStorageConnection
     {
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
-        private readonly PersistentJobQueueProviderCollection _queueProviders;
+        private readonly IPersistentJobQueue _queue;
         private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlConnection(
             IPostgreSqlConnectionProvider connectionProvider,
-            PersistentJobQueueProviderCollection queueProviders,
+            IPersistentJobQueue queue,
             PostgreSqlStorageOptions options)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
-            Guard.ThrowIfNull(queueProviders, nameof(queueProviders));
+            Guard.ThrowIfNull(queue, nameof(queue));
             Guard.ThrowIfNull(options, nameof(options));
 
             _connectionProvider = connectionProvider;
-            _queueProviders = queueProviders;
+            _queue = queue;
             _options = options;
         }
 
         public override IWriteOnlyTransaction CreateWriteTransaction()
-            => new PostgreSqlWriteOnlyTransaction(_connectionProvider, _options, _queueProviders);
+            => new PostgreSqlWriteOnlyTransaction(_connectionProvider, _queue, _options);
 
         public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
             => new PostgreSqlDistributedLock(
@@ -47,20 +47,7 @@ namespace Hangfire.PostgreSql
         public override IFetchedJob FetchNextJob([NotNull] string[] queues, CancellationToken cancellationToken)
         {
             if (queues == null || queues.Length == 0) throw new ArgumentNullException(nameof(queues));
-
-            var providers = queues
-                .Select(queue => _queueProviders.GetProvider(queue))
-                .Distinct()
-                .ToArray();
-
-            if (providers.Length != 1)
-            {
-                throw new InvalidOperationException(
-                    $"Multiple provider instances registered for queues: {string.Join(", ", queues)}. You should choose only one type of persistent queues per server instance.");
-            }
-
-            var persistentQueue = providers[0].GetJobQueue(_connectionProvider);
-            return persistentQueue.Dequeue(queues, cancellationToken);
+            return _queue.Dequeue(queues, cancellationToken);
         }
 
         public override string CreateExpiredJob(

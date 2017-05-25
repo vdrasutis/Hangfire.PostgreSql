@@ -1,6 +1,10 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using Dapper;
+using Hangfire.Common;
+using Hangfire.PostgreSql.Entities;
+using Hangfire.States;
+using Hangfire.Storage.Monitoring;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
@@ -30,6 +34,63 @@ FROM ""{_options.SchemaName}"".""jobqueue"";
                 return connectionHolder.Connection.Query(sqlQuery).Select(x => (string)x.queue).ToList();
             }
         }
+
+        public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int @from, int perPage)
+        {
+            var enqueuedJobsQuery = GetQuery(@from, perPage, "IS NULL");
+
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                var jobs = connectionHolder.Connection.Query<SqlJob>(enqueuedJobsQuery).ToList();
+
+                return Utils.DeserializeJobs(
+                    jobs,
+                    (sqlJob, job, stateData) => new EnqueuedJobDto
+                    {
+                        Job = job,
+                        State = sqlJob.StateName,
+                        EnqueuedAt = sqlJob.StateName == EnqueuedState.StateName
+                            ? JobHelper.DeserializeNullableDateTime(stateData["EnqueuedAt"])
+                            : null
+                    });
+            }
+        }
+
+        public JobList<FetchedJobDto> FetchedJobs(string queue, int @from, int perPage)
+        {
+            var fetchedJobsQuery = GetQuery(@from, perPage, "IS NOT NULL");
+
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                var jobs = connectionHolder.Connection.Query<SqlJob>(fetchedJobsQuery).ToList();
+
+                return Utils.DeserializeJobs(
+                    jobs,
+                    (sqlJob, job, stateData) => new FetchedJobDto
+                    {
+                        Job = Utils.DeserializeJob(sqlJob.InvocationData, sqlJob.Arguments),
+                        State = sqlJob.StateName,
+                        FetchedAt = sqlJob.FetchedAt
+                    });
+            }
+        }
+
+
+        private string GetQuery(int @from, int perPage, string fetchCondition) => $@"
+SELECT j.id ""Id"",
+       j.invocationdata ""InvocationData"", 
+       j.arguments ""Arguments"", 
+       j.createdat ""CreatedAt"", 
+       j.expireat ""ExpireAt"", 
+       s.name ""StateName"", 
+       s.reason""StateReason"", 
+       s.data ""StateData""
+FROM ""{_options.SchemaName}"".job j
+LEFT JOIN ""{_options.SchemaName}"".state s ON s.id = j.stateid
+LEFT JOIN ""{_options.SchemaName}"".jobqueue jq ON jq.jobid = j.id
+WHERE jq.fetchedat {fetchCondition}
+LIMIT {perPage} OFFSET {@from};";
+
 
         public IEnumerable<int> GetEnqueuedJobIds(string queue, int @from, int perPage)
         {
@@ -62,7 +123,7 @@ LIMIT @count OFFSET @start;
             return GetQueuedOrFetchedJobIds(queue, true, @from, perPage);
         }
 
-        public EnqueuedAndFetchedCountDto GetEnqueuedAndFetchedCount(string queue)
+        public (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue)
         {
             string sqlQuery = @"
 SELECT (
@@ -82,11 +143,7 @@ SELECT (
             {
                 var result = connectionHolder.Connection.Query(sqlQuery, new { queue = queue }).Single();
 
-                return new EnqueuedAndFetchedCountDto
-                {
-                    EnqueuedCount = result.EnqueuedCount,
-                    FetchedCount = result.FetchedCount
-                };
+                return (result.EnqueuedCount, result.FetchedCount);
             }
         }
     }

@@ -79,11 +79,6 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
                 fetchedJob.Queue);
         }
 
-        private string SwitchDequeueCondition(string currentCondition, string condA, string condB)
-        {
-            return currentCondition == condA ? condB : condA;
-        }
-
         public void Enqueue(string queue, string jobId)
         {
             string query = $@"

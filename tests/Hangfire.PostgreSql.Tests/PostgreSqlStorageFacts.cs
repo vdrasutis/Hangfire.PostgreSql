@@ -32,18 +32,7 @@ namespace Hangfire.PostgreSql.Tests
 
             Assert.Equal("options", exception.ParamName);
         }
-
-        [Fact, CleanDatabase]
-        public void Ctor_InitializesDefaultJobQueueProvider_AndPassesCorrectOptions()
-        {
-            var storage = CreateStorage();
-            var providers = storage.QueueProviders;
-
-            var provider = (PostgreSqlJobQueueProvider)providers.GetProvider("default");
-
-            Assert.Same(_options, provider.Options);
-        }
-
+        
         [Fact, CleanDatabase]
         public void GetMonitoringApi_ReturnsNonNullInstance()
         {

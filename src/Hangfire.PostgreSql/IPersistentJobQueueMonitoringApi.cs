@@ -1,12 +1,13 @@
 ﻿using System.Collections.Generic;
+using Hangfire.Storage.Monitoring;
 
 namespace Hangfire.PostgreSql
 {
-    public interface IPersistentJobQueueMonitoringApi
+    internal interface IPersistentJobQueueMonitoringApi
     {
         IEnumerable<string> GetQueues();
-        IEnumerable<int> GetEnqueuedJobIds(string queue, int from, int perPage);
-        IEnumerable<int> GetFetchedJobIds(string queue, int from, int perPage);
-        EnqueuedAndFetchedCountDto GetEnqueuedAndFetchedCount(string queue);
+        JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int @from, int perPage);
+        JobList<FetchedJobDto> FetchedJobs(string queue, int @from, int perPage);
+        (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue);
     }
 }

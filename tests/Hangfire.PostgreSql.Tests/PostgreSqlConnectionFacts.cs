@@ -19,7 +19,6 @@ namespace Hangfire.PostgreSql.Tests
     {
         private readonly Mock<IPersistentJobQueue> _queue;
         private readonly Mock<IPersistentJobQueueProvider> _provider;
-        private readonly PersistentJobQueueProviderCollection _providers;
         private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlConnectionFacts()
@@ -29,8 +28,6 @@ namespace Hangfire.PostgreSql.Tests
             _provider = new Mock<IPersistentJobQueueProvider>();
             _provider.Setup(x => x.GetJobQueue(It.IsNotNull<PostgreSqlConnectionProvider>()))
                 .Returns(_queue.Object);
-
-            _providers = new PersistentJobQueueProviderCollection(_provider.Object);
 
             _options = new PostgreSqlStorageOptions()
             {
@@ -42,25 +39,25 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnection(null, _providers, _options));
+                () => new PostgreSqlConnection(null, _queue.Object, _options));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
 
         [Fact, CleanDatabase]
-        public void Ctor_ThrowsAnException_WhenProvidersCollectionIsNull()
+        public void Ctor_ThrowsAnException_WhenQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new PostgreSqlConnection(ConnectionUtils.CreateConnection(), null, _options));
 
-            Assert.Equal("queueProviders", exception.ParamName);
+            Assert.Equal("queue", exception.ParamName);
         }
 
         [Fact, CleanDatabase]
         public void Ctor_ThrowsAnException_WhenOptionsIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnection(ConnectionUtils.CreateConnection(), _providers, null));
+                () => new PostgreSqlConnection(ConnectionUtils.CreateConnection(), _queue.Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -69,11 +66,11 @@ namespace Hangfire.PostgreSql.Tests
         public void Dispose_DoesNotDisposeTheConnection()
         {
             var sqlConnection = ConnectionUtils.CreateConnection();
-                var connection = new PostgreSqlConnection(sqlConnection, _providers, _options);
+            var connection = new PostgreSqlConnection(sqlConnection, _queue.Object, _options);
 
-                connection.Dispose();
+            connection.Dispose();
 
-               // Assert.Equal(sqlConnection.); TODO
+            // Assert.Equal(sqlConnection.); TODO
         }
 
         [Fact, CleanDatabase]
@@ -87,20 +84,6 @@ namespace Hangfire.PostgreSql.Tests
                 connection.FetchNextJob(queues, token);
 
                 _queue.Verify(x => x.Dequeue(queues, token));
-            });
-        }
-
-        [Fact, CleanDatabase]
-        public void FetchNextJob_Throws_IfMultipleProvidersResolved()
-        {
-            UseConnection(connection =>
-            {
-                var token = new CancellationToken();
-                var anotherProvider = new Mock<IPersistentJobQueueProvider>();
-                _providers.Add(anotherProvider.Object, new[] { "critical" });
-
-                Assert.Throws<InvalidOperationException>(
-                    () => connection.FetchNextJob(new[] { "critical", "default" }, token));
             });
         }
 
@@ -247,7 +230,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
                 Assert.True(result.CreatedAt < DateTime.UtcNow.AddMinutes(1));
             });
         }
-        
+
         [Fact, CleanDatabase]
         public void GetStateData_ThrowsAnException_WhenJobIdIsNull()
         {
@@ -1298,7 +1281,7 @@ values (@key, @field, @value)";
         private void UseConnections(Action<NpgsqlConnection, PostgreSqlConnection> action)
         {
             var provider = ConnectionUtils.CreateConnection();
-            using (var connection = new PostgreSqlConnection(provider, _providers, _options))
+            using (var connection = new PostgreSqlConnection(provider, _queue.Object, _options))
             {
                 using (var con = provider.AcquireConnection())
                 {
@@ -1311,7 +1294,7 @@ values (@key, @field, @value)";
         {
             using (var connection = new PostgreSqlConnection(
                 ConnectionUtils.CreateConnection(),
-                _providers,
+                _queue.Object,
                 _options))
             {
                 action(connection);

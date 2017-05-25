@@ -14,16 +14,17 @@ namespace Hangfire.PostgreSql.Tests
 {
     public class PostgreSqlWriteOnlyTransactionFacts
     {
-        private readonly PersistentJobQueueProviderCollection _queueProviders;
+        private readonly Mock<IPersistentJobQueue> _queue;
         private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlWriteOnlyTransactionFacts()
         {
+            _queue = new Mock<IPersistentJobQueue>();
+
             var defaultProvider = new Mock<IPersistentJobQueueProvider>();
             defaultProvider.Setup(x => x.GetJobQueue(It.IsNotNull<PostgreSqlConnectionProvider>()))
                 .Returns(new Mock<IPersistentJobQueue>().Object);
 
-            _queueProviders = new PersistentJobQueueProviderCollection(defaultProvider.Object);
             _options = new PostgreSqlStorageOptions()
             {
                 SchemaName = GetSchemaName()
@@ -34,7 +35,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_IfConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(null, _options, _queueProviders));
+                () => new PostgreSqlWriteOnlyTransaction(null, _queue.Object, _options));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
@@ -43,19 +44,19 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_IfOptionsIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), null, _queueProviders));
+                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), _queue.Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
 
 
         [Fact, CleanDatabase]
-        public void Ctor_ThrowsAnException_IfProvidersCollectionIsNull()
+        public void Ctor_ThrowsAnException_IfQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), _options, null));
+                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), null, _options));
 
-            Assert.Equal("queueProviders", exception.ParamName);
+            Assert.Equal("queue", exception.ParamName);
         }
 
         [Fact, CleanDatabase]
@@ -179,16 +180,9 @@ returning ""id""";
         {
             UseConnection((provider, connection) =>
             {
-                var correctJobQueue = new Mock<IPersistentJobQueue>();
-                var correctProvider = new Mock<IPersistentJobQueueProvider>();
-                correctProvider.Setup(x => x.GetJobQueue(It.IsNotNull<PostgreSqlConnectionProvider>()))
-                    .Returns(correctJobQueue.Object);
-
-                _queueProviders.Add(correctProvider.Object, new[] { "default" });
-
                 Commit(provider, x => x.AddToQueue("default", "1"));
 
-                correctJobQueue.Verify(x => x.Enqueue("default", "1"));
+                _queue.Verify(x => x.Enqueue("default", "1"));
             });
         }
 
@@ -1013,7 +1007,7 @@ returning ""id""";
 
         private void Commit(IPostgreSqlConnectionProvider provider, Action<PostgreSqlWriteOnlyTransaction> action)
         {
-            using (var transaction = new PostgreSqlWriteOnlyTransaction(provider, _options, _queueProviders))
+            using (var transaction = new PostgreSqlWriteOnlyTransaction(provider, _queue.Object, _options))
             {
                 action(transaction);
                 transaction.Commit();

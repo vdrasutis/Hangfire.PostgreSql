@@ -7,7 +7,9 @@ using Hangfire.Server;
 
 namespace Hangfire.PostgreSql
 {
+#pragma warning disable 618 // TODO Remove when Hangfire 2.0 will be released
     internal sealed class CountersAggregationManager : IBackgroundProcess, IServerComponent
+#pragma warning restore 618
     {
         private static readonly ILog Logger = LogProvider.GetLogger(typeof(ExpirationManager));
 

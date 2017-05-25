@@ -8,7 +8,9 @@ using Hangfire.Server;
 
 namespace Hangfire.PostgreSql
 {
+#pragma warning disable 618 // TODO Remove when Hangfire 2.0 will be released
     internal sealed class ExpirationManager : IBackgroundProcess, IServerComponent
+#pragma warning restore 618
     {
         private static readonly TimeSpan DelayBetweenPasses = TimeSpan.FromSeconds(1);
         private const int NumberOfRecordsInSinglePass = 1000;
