@@ -74,13 +74,13 @@ namespace Hangfire.PostgreSql.Tests
             PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
             {
                 SchemaName = GetSchemaName(),
-                DistributedLockTimeout = TimeSpan.FromSeconds(10)
+                DistributedLockTimeout = TimeSpan.FromSeconds(5)
             };
 
             UseConnection((provider, connection) =>
             {
                 // Arrange
-                var timeout = TimeSpan.FromSeconds(15);
+                var timeout = TimeSpan.FromSeconds(7);
                 var resourceName = "hello";
                 connection.Execute(
                     $@"INSERT INTO ""{GetSchemaName()}"".""lock"" VALUES ('{resourceName}', 0, '{DateTime.UtcNow}')");
