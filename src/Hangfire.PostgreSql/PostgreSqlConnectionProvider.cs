@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data;
 using System.Threading.Tasks;
 using Hangfire.Logging;
 using Npgsql;
@@ -16,17 +17,22 @@ namespace Hangfire.PostgreSql
 
         private readonly string _connectionString;
         private readonly PostgreSqlStorageOptions _options;
-        private int _connectionsCreated;
+        private int _activeConnections;
 
         private readonly object _connectionsLock = new object();
 
         public PostgreSqlConnectionProvider(string connectionString, PostgreSqlStorageOptions options)
         {
+            Guard.ThrowIfConnectionStringIsInvalid(connectionString);
+            Guard.ThrowIfNull(options, nameof(options));
+
             _connectionString = connectionString;
             _options = options;
             _connectionsQueue = new ConcurrentQueue<NpgsqlConnection>();
             _connections = new List<NpgsqlConnection>((int)_options.ConnectionsCount);
         }
+
+        public int ActiveConnections => _activeConnections;
 
         public PostgreSqlConnectionHolder AcquireConnection()
         {
@@ -55,11 +61,11 @@ namespace Hangfire.PostgreSql
 
         private NpgsqlConnection CreateConnectionIfNeeded()
         {
-            if (_connectionsCreated >= _options.ConnectionsCount) return null;
+            if (_activeConnections >= _options.ConnectionsCount) return null;
 
             lock (_connectionsLock)
             {
-                if (_connectionsCreated >= _options.ConnectionsCount) return null;
+                if (_activeConnections >= _options.ConnectionsCount) return null;
 
                 NpgsqlConnection newConnection;
                 try
@@ -72,18 +78,32 @@ namespace Hangfire.PostgreSql
                     Logger.ErrorFormat("Error while creating connection", e);
                     throw;
                 }
-                _connectionsCreated++;
+                _activeConnections++;
                 _connections.Add(newConnection);
+                newConnection.StateChange += ConnectionStateChanged;
 
                 return newConnection;
             }
         }
 
+        private void ConnectionStateChanged(object sender, StateChangeEventArgs stateChangeEventArgs)
+        {
+            if (stateChangeEventArgs.CurrentState != ConnectionState.Open)
+            {
+                lock (_connectionsLock)
+                {
+                    _connections.Remove(sender as NpgsqlConnection);
+                    _activeConnections--;
+                }
+                Logger.Info("Connection was removed from pool");
+            }
+        }
+
         public void Dispose()
         {
-            while (!_connectionsQueue.IsEmpty)
+            lock (_connectionsLock)
             {
-                if (_connectionsQueue.TryDequeue(out var connection))
+                foreach (var connection in new List<NpgsqlConnection>(_connections))
                 {
                     connection.Dispose();
                 }

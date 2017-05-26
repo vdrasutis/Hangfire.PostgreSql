@@ -30,8 +30,12 @@ namespace Hangfire.PostgreSql
 
         public CountersAggregationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options, TimeSpan checkInterval)
         {
-            _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
+            Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
+            Guard.ThrowIfNull(options, nameof(options));
+            Guard.ThrowIfValueIsNotPositive(checkInterval, nameof(checkInterval));
+
+            _connectionProvider = connectionProvider;
+            _options = options;
             _checkInterval = checkInterval;
         }
 

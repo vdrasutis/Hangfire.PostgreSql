@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Data;
 using Npgsql;
 
 namespace Hangfire.PostgreSql
@@ -19,7 +20,15 @@ namespace Hangfire.PostgreSql
         {
             get
             {
-                if (Disposed) throw new ObjectDisposedException(nameof(Connection));
+                if (Disposed)
+                    throw new ObjectDisposedException(nameof(Connection));
+
+                if (_connection.State == ConnectionState.Closed)
+                {
+                    Disposed = true;
+                    throw new ObjectDisposedException(nameof(Connection));
+                }
+
                 return _connection;
             }
         }

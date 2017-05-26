@@ -43,7 +43,6 @@ namespace Hangfire.PostgreSql
                 while (tryAcquireLock)
                 {
                     TryRemoveTimeoutedLock(connection);
-
                     try
                     {
                         int rowsAffected;
@@ -51,15 +50,14 @@ namespace Hangfire.PostgreSql
                         {
                             var sql = $@"
 INSERT INTO ""{_options.SchemaName}"".lock(resource, acquired) 
-SELECT @resource, @acquired
+SELECT @resource, current_timestamp at time zone 'UTC'
 WHERE NOT EXISTS (
     SELECT 1 FROM ""{_options.SchemaName}"".lock
     WHERE resource = @resource
 );";
                             var parameters = new
                             {
-                                resource = _resource,
-                                acquired = DateTime.UtcNow
+                                resource = _resource
                             };
                             rowsAffected = connection.Execute(sql, parameters, transaction);
                             transaction.Commit();
@@ -114,12 +112,12 @@ WHERE NOT EXISTS (
                     var query = $@"
 DELETE FROM ""{_options.SchemaName}"".lock
 WHERE resource = @resource
-AND acquired < @timeout";
+AND acquired < current_timestamp at time zone 'UTC' - @timeout";
 
                     var parameters = new
                     {
                         resource = _resource,
-                        timeout = DateTime.UtcNow - _options.DistributedLockTimeout
+                        timeout = _options.DistributedLockTimeout
                     };
                     connection.Execute(query, parameters, transaction);
                     transaction.Commit();
@@ -140,7 +138,7 @@ AND acquired < @timeout";
                 _completed = true;
 
                 var query = $@"
-DELETE FROM ""{_options.SchemaName}"".""lock"" 
+DELETE FROM ""{_options.SchemaName}"".lock 
 WHERE ""resource"" = @resource;
 ";
                 int rowsAffected = connectionHolder.Connection.Execute(query, new { resource = _resource });

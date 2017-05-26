@@ -64,7 +64,7 @@ values ('stats:succeeded', 1)";
         private CountersAggregationManager CreateManager()
         {
             var connectionProvider = ConnectionUtils.CreateConnection();
-            return new CountersAggregationManager(connectionProvider, _options, TimeSpan.Zero);
+            return new CountersAggregationManager(connectionProvider, _options, TimeSpan.FromSeconds(1));
         }
     }
 }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Hangfire.Annotations;
@@ -14,26 +13,6 @@ namespace Hangfire.PostgreSql
                 "Npgsql is not fully compatible with TransactionScope yet, only connections without Enlist = true are accepted.";
         private const string HostHasNotFoundExceptionMessage = "Invalid Postgres connection string: host has not found.";
         private const string PoolingIsNotAvailableExceptionMessage = "Pooling=true can't be used in connection string.";
-
-        [ContractAnnotation("condition:false => halt")]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIfNot(bool condition, [NotNull] string argumentName)
-        {
-            if (!condition)
-                throw new ArgumentException("Condition failed", argumentName);
-        }
-
-        [ContractAnnotation("objects:null => halt")]
-        public static void ThrowIfItemIsNull<T>([NotNull] IReadOnlyCollection<T> objects, [NotNull] string argumentName)
-            where T : class
-        {
-            ThrowIfNull(objects, nameof(objects));
-            foreach (var @object in objects)
-            {
-                if (@object == null)
-                    throw new ArgumentException("Item cannot be null", argumentName);
-            }
-        }
 
         [ContractAnnotation("argument:null => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -53,12 +32,6 @@ namespace Hangfire.PostgreSql
 
         [ContractAnnotation("argument:null => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIfNullOrWhitespace([NotNull] string @string, [NotNull] string argumentName)
-        {
-            if (string.IsNullOrWhiteSpace(@string))
-                throw new ArgumentException("Parameter cannot be null or whitespace string", argumentName);
-        }
-
         public static void ThrowIfConnectionStringIsInvalid([NotNull] string connectionString)
         {
             ThrowIfNull(connectionString, nameof(connectionString));
@@ -69,11 +42,28 @@ namespace Hangfire.PostgreSql
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIfConnectionContainsEnlist([NotNull] NpgsqlConnection connection)
+        public static void ThrowIfValueIsNotPositive(int value, string fieldName)
         {
-            ThrowIfNull(connection, nameof(connection));
-            var connectionStringBuilder = new NpgsqlConnectionStringBuilder(connection.ConnectionString);
-            if (connectionStringBuilder.Enlist) throw new ArgumentException(EnlistIsNotAvailableExceptionMessage);
+            if (value <= 0)
+            {
+                var message = $"The {fieldName} property value should be positive. Given: {value}.";
+                throw new ArgumentException(message, nameof(value));
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ThrowIfValueIsNotPositive(TimeSpan value, string fieldName)
+        {
+            var message = $"The {fieldName} property value should be positive. Given: {value}.";
+
+            if (value == TimeSpan.Zero)
+            {
+                throw new ArgumentException(message, nameof(value));
+            }
+            if (value != value.Duration())
+            {
+                throw new ArgumentException(message, nameof(value));
+            }
         }
     }
 }

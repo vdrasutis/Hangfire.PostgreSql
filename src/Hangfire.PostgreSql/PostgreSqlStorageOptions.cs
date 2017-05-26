@@ -7,7 +7,7 @@ namespace Hangfire.PostgreSql
         private TimeSpan _queuePollInterval;
         private TimeSpan _invisibilityTimeout;
         private TimeSpan _distributedLockTimeout;
-        private uint _connectionsCount;
+        private int _connectionsCount;
 
         public PostgreSqlStorageOptions()
         {
@@ -24,7 +24,7 @@ namespace Hangfire.PostgreSql
             get => _queuePollInterval;
             set
             {
-                ThrowIfValueIsNotPositive(value, nameof(QueuePollInterval));
+                Guard.ThrowIfValueIsNotPositive(value, nameof(QueuePollInterval));
                 _queuePollInterval = value;
             }
         }
@@ -34,7 +34,7 @@ namespace Hangfire.PostgreSql
             get => _invisibilityTimeout;
             set
             {
-                ThrowIfValueIsNotPositive(value, nameof(InvisibilityTimeout));
+                Guard.ThrowIfValueIsNotPositive(value, nameof(InvisibilityTimeout));
                 _invisibilityTimeout = value;
             }
         }
@@ -44,17 +44,17 @@ namespace Hangfire.PostgreSql
             get => _distributedLockTimeout;
             set
             {
-                ThrowIfValueIsNotPositive(value, nameof(DistributedLockTimeout));
+                Guard.ThrowIfValueIsNotPositive(value, nameof(DistributedLockTimeout));
                 _distributedLockTimeout = value;
             }
         }
 
-        public uint ConnectionsCount
+        public int ConnectionsCount
         {
             get => _connectionsCount;
             set
             {
-                if (value == 0) throw new ArgumentException("Cannot be zero", nameof(ConnectionsCount));
+                Guard.ThrowIfValueIsNotPositive(value, nameof(ConnectionsCount));
                 _connectionsCount = value;
             }
         }
@@ -62,20 +62,5 @@ namespace Hangfire.PostgreSql
         public bool PrepareSchemaIfNecessary { get; set; }
 
         public string SchemaName { get; set; }
-
-
-        private static void ThrowIfValueIsNotPositive(TimeSpan value, string fieldName)
-        {
-            var message = $"The {fieldName} property value should be positive. Given: {value}.";
-
-            if (value == TimeSpan.Zero)
-            {
-                throw new ArgumentException(message, nameof(value));
-            }
-            if (value != value.Duration())
-            {
-                throw new ArgumentException(message, nameof(value));
-            }
-        }
     }
 }
