@@ -5,7 +5,9 @@ using System.Threading;
 using Dapper;
 using Hangfire.PostgreSql.Entities;
 using Hangfire.Storage;
+using Npgsql;
 
+// ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlJobQueue : IPersistentJobQueue
@@ -30,22 +32,19 @@ namespace Hangfire.PostgreSql
             long timeoutSeconds = (long)_options.InvisibilityTimeout.Negate().TotalSeconds;
 
             var fetchJobSqlTemplate = $@"
-WITH fetched AS (
-   SELECT id
-   FROM ""{_options.SchemaName}"".jobqueue
-   WHERE queue IN ({string.Join(",", queues.Select(x => string.Concat("'", x, "'")))})
-   AND (
+UPDATE ""{_options.SchemaName}"".jobqueue AS jobqueue
+SET fetchedat = NOW() AT TIME ZONE 'UTC'
+WHERE jobqueue.id = (
+    SELECT id
+    FROM ""{_options.SchemaName}"".jobqueue
+    WHERE queue IN ({string.Join(",", queues.Select(x => string.Concat("'", x, "'")))})
+    AND (
        fetchedat IS NULL OR
        fetchedat < NOW() AT TIME ZONE 'UTC' + INTERVAL '{timeoutSeconds} SECONDS'
        )
-   ORDER BY ({string.Join(",", queues.Select(x => $@"queue='{x}'"))}) DESC
-   LIMIT 1
-   FOR UPDATE SKIP LOCKED
-)
-UPDATE ""{_options.SchemaName}"".jobqueue AS jobqueue
-SET fetchedat = NOW() AT TIME ZONE 'UTC'
-FROM fetched
-WHERE jobqueue.id = fetched.id
+    ORDER BY ({string.Join(",", queues.Select(x => $@"queue='{x}'"))}) DESC
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED)
 RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS FetchedAt;
 ";
 
@@ -79,16 +78,20 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
 
         public void Enqueue(string queue, string jobId)
         {
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                Enqueue(queue, jobId, connectionHolder.Connection);
+            }
+        }
+
+        public void Enqueue(string queue, string jobId, NpgsqlConnection connection)
+        {
             string query = $@"
 INSERT INTO ""{_options.SchemaName}"".jobqueue (jobid, queue) 
 VALUES (@jobId, @queue);
 ";
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
-            {
-                // ReSharper disable once RedundantAnonymousTypePropertyName
-                var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };
-                connectionHolder.Connection.Execute(query, parameters);
-            }
+            var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };
+            connection.Execute(query, parameters);
         }
     }
 }

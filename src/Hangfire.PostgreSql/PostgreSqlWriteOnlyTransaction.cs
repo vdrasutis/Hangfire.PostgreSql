@@ -118,7 +118,7 @@ VALUES (@jobId, @name, @reason, @createdAt, @data);
 
         public override void AddToQueue(string queue, string jobId)
         {
-            QueueCommand((con, trx) => _queue.Enqueue(queue, jobId));
+            QueueCommand((con, trx) => _queue.Enqueue(queue, jobId, con));
         }
 
         public override void IncrementCounter(string key)

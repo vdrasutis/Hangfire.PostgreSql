@@ -18,17 +18,11 @@ namespace Hangfire.PostgreSql.Tests
     public class PostgreSqlConnectionFacts
     {
         private readonly Mock<IPersistentJobQueue> _queue;
-        private readonly Mock<IPersistentJobQueueProvider> _provider;
         private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlConnectionFacts()
         {
             _queue = new Mock<IPersistentJobQueue>();
-
-            _provider = new Mock<IPersistentJobQueueProvider>();
-            _provider.Setup(x => x.GetJobQueue(It.IsNotNull<PostgreSqlConnectionProvider>()))
-                .Returns(_queue.Object);
-
             _options = new PostgreSqlStorageOptions()
             {
                 SchemaName = GetSchemaName()

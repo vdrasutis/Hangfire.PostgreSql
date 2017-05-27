@@ -37,7 +37,7 @@ FROM ""{_options.SchemaName}"".jobqueue;
 
         public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int @from, int perPage)
         {
-            var enqueuedJobsQuery = GetQuery(@from, perPage, "IS NULL");
+            var enqueuedJobsQuery = GetQuery(queue, @from, perPage, "IS NULL");
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -58,7 +58,7 @@ FROM ""{_options.SchemaName}"".jobqueue;
 
         public JobList<FetchedJobDto> FetchedJobs(string queue, int @from, int perPage)
         {
-            var fetchedJobsQuery = GetQuery(@from, perPage, "IS NOT NULL");
+            var fetchedJobsQuery = GetQuery(queue, @from, perPage, "IS NOT NULL");
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -76,7 +76,7 @@ FROM ""{_options.SchemaName}"".jobqueue;
         }
 
 
-        private string GetQuery(int @from, int perPage, string fetchCondition) => $@"
+        private string GetQuery(string queue, int @from, int perPage, string fetchCondition) => $@"
 SELECT j.id ""Id"",
        j.invocationdata ""InvocationData"", 
        j.arguments ""Arguments"", 
@@ -88,7 +88,8 @@ SELECT j.id ""Id"",
 FROM ""{_options.SchemaName}"".jobqueue jq
 LEFT JOIN ""{_options.SchemaName}"".job j ON jq.jobid = j.id
 LEFT JOIN ""{_options.SchemaName}"".state s ON s.id = j.stateid
-WHERE jq.fetchedat {fetchCondition}
+WHERE jq.queue = {queue} AND 
+jq.fetchedat {fetchCondition}
 LIMIT {perPage} OFFSET {@from};";
 
         public (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue)

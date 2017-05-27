@@ -20,11 +20,6 @@ namespace Hangfire.PostgreSql.Tests
         public PostgreSqlWriteOnlyTransactionFacts()
         {
             _queue = new Mock<IPersistentJobQueue>();
-
-            var defaultProvider = new Mock<IPersistentJobQueueProvider>();
-            defaultProvider.Setup(x => x.GetJobQueue(It.IsNotNull<PostgreSqlConnectionProvider>()))
-                .Returns(new Mock<IPersistentJobQueue>().Object);
-
             _options = new PostgreSqlStorageOptions()
             {
                 SchemaName = GetSchemaName()
@@ -182,7 +177,7 @@ returning ""id""";
             {
                 Commit(provider, x => x.AddToQueue("default", "1"));
 
-                _queue.Verify(x => x.Enqueue("default", "1"));
+                _queue.Verify(x => x.Enqueue("default", "1", It.IsAny<NpgsqlConnection>()));
             });
         }
 

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Data;
+using System.Threading;
 using System.Threading.Tasks;
 using Hangfire.Logging;
 using Npgsql;
@@ -12,14 +12,11 @@ namespace Hangfire.PostgreSql
     {
         private static readonly ILog Logger = LogProvider.GetLogger(typeof(PostgreSqlConnectionProvider));
 
-        private readonly ConcurrentQueue<NpgsqlConnection> _connectionsQueue;
-        private readonly List<NpgsqlConnection> _connections;
-
         private readonly string _connectionString;
         private readonly PostgreSqlStorageOptions _options;
         private int _activeConnections;
-
-        private readonly object _connectionsLock = new object();
+        private readonly ConcurrentQueue<NpgsqlConnection> _connectionQueue;
+        private readonly ConcurrentBag<NpgsqlConnection> _connectionPool;
 
         public PostgreSqlConnectionProvider(string connectionString, PostgreSqlStorageOptions options)
         {
@@ -28,11 +25,11 @@ namespace Hangfire.PostgreSql
 
             _connectionString = connectionString;
             _options = options;
-            _connectionsQueue = new ConcurrentQueue<NpgsqlConnection>();
-            _connections = new List<NpgsqlConnection>((int)_options.ConnectionsCount);
+            _connectionQueue = new ConcurrentQueue<NpgsqlConnection>();
+            _connectionPool = new ConcurrentBag<NpgsqlConnection>();
         }
 
-        public int ActiveConnections => _activeConnections;
+        internal int ActiveConnections => _activeConnections;
 
         public PostgreSqlConnectionHolder AcquireConnection()
         {
@@ -43,13 +40,13 @@ namespace Hangfire.PostgreSql
         public void ReleaseConnection(PostgreSqlConnectionHolder connectionHolder)
         {
             if (connectionHolder.Disposed) return;
-            _connectionsQueue.Enqueue(connectionHolder.Connection);
+            _connectionQueue.Enqueue(connectionHolder.Connection);
         }
 
         private NpgsqlConnection GetFreeConnection()
         {
             NpgsqlConnection connection;
-            while (!_connectionsQueue.TryDequeue(out connection))
+            while (!_connectionQueue.TryDequeue(out connection))
             {
                 connection = CreateConnectionIfNeeded();
                 if (connection != null) return connection;
@@ -62,51 +59,45 @@ namespace Hangfire.PostgreSql
         private NpgsqlConnection CreateConnectionIfNeeded()
         {
             if (_activeConnections >= _options.ConnectionsCount) return null;
+            Interlocked.Increment(ref _activeConnections);
 
-            lock (_connectionsLock)
+            if (_activeConnections > _options.ConnectionsCount)
             {
-                if (_activeConnections >= _options.ConnectionsCount) return null;
-
-                NpgsqlConnection newConnection;
-                try
-                {
-                    newConnection = new NpgsqlConnection(_connectionString);
-                    newConnection.Open();
-                }
-                catch (Exception e)
-                {
-                    Logger.ErrorFormat("Error while creating connection", e);
-                    throw;
-                }
-                _activeConnections++;
-                _connections.Add(newConnection);
-                newConnection.StateChange += ConnectionStateChanged;
-
-                return newConnection;
+                Interlocked.Decrement(ref _activeConnections);
+                return null;
             }
+
+            NpgsqlConnection newConnection;
+            try
+            {
+                newConnection = new NpgsqlConnection(_connectionString);
+                newConnection.Open();
+            }
+            catch (Exception e)
+            {
+                Logger.ErrorFormat("Error while creating connection", e);
+                throw;
+            }
+            newConnection.StateChange += ConnectionStateChanged;
+            _connectionPool.Add(newConnection);
+
+            return newConnection;
         }
 
         private void ConnectionStateChanged(object sender, StateChangeEventArgs stateChangeEventArgs)
         {
             if (stateChangeEventArgs.CurrentState != ConnectionState.Open)
             {
-                lock (_connectionsLock)
-                {
-                    _connections.Remove(sender as NpgsqlConnection);
-                    _activeConnections--;
-                }
                 Logger.Info("Connection was removed from pool");
+                Interlocked.Decrement(ref _activeConnections);
             }
         }
 
         public void Dispose()
         {
-            lock (_connectionsLock)
+            while (_connectionPool.TryTake(out var connection))
             {
-                foreach (var connection in new List<NpgsqlConnection>(_connections))
-                {
-                    connection.Dispose();
-                }
+                connection.Dispose();
             }
         }
     }

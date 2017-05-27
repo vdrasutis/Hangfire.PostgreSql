@@ -55,21 +55,21 @@ namespace Hangfire.PostgreSql
             DateTime createdAt,
             TimeSpan expireIn)
         {
-            if (job == null) throw new ArgumentNullException(nameof(job));
-            if (parameters == null) throw new ArgumentNullException(nameof(parameters));
+            Guard.ThrowIfNull(job, nameof(job));
+            Guard.ThrowIfNull(parameters, nameof(parameters));
 
             var createJobSql = $@"
 INSERT INTO ""{_options.SchemaName}"".job (invocationdata, arguments, createdat, expireat)
 VALUES (@invocationData, @arguments, @createdAt, @expireAt) 
 RETURNING id;
 ";
-
             var invocationData = InvocationData.Serialize(job);
 
+            int jobId;
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 var connection = connectionHolder.Connection;
-                var jobId = connection.Query<int>(
+                jobId = connection.Query<int>(
                     createJobSql,
                     new
                     {
@@ -77,32 +77,33 @@ RETURNING id;
                         arguments = invocationData.Arguments,
                         createdAt = createdAt,
                         expireAt = createdAt.Add(expireIn)
-                    }).Single().ToString(CultureInfo.InvariantCulture);
+                    }).Single();
+            }
 
-                if (parameters.Count > 0)
+            if (parameters.Count > 0)
+            {
+                var parameterArray = new object[parameters.Count];
+                var parameterIndex = 0;
+                foreach (var parameter in parameters)
                 {
-                    var parameterArray = new object[parameters.Count];
-                    var parameterIndex = 0;
-                    foreach (var parameter in parameters)
+                    parameterArray[parameterIndex++] = new
                     {
-                        parameterArray[parameterIndex++] = new
-                        {
-                            jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture),
-                            name = parameter.Key,
-                            value = parameter.Value
-                        };
-                    }
+                        jobId = jobId,
+                        name = parameter.Key,
+                        value = parameter.Value
+                    };
+                }
 
-                    var insertParameterSql = $@"
+                var insertParameterSql = $@"
 INSERT INTO ""{_options.SchemaName}"".jobparameter (jobid, name, value)
 VALUES (@jobId, @name, @value);
 ";
-
-                    connection.Execute(insertParameterSql, parameterArray);
+                using (var connectionHolder = _connectionProvider.AcquireConnection())
+                {
+                    connectionHolder.Connection.Execute(insertParameterSql, parameterArray);
                 }
-
-                return jobId;
             }
+            return jobId.ToString(CultureInfo.InvariantCulture);
         }
 
         public override JobData GetJobData(string id)
