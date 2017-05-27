@@ -88,7 +88,7 @@ SELECT j.id ""Id"",
 FROM ""{_options.SchemaName}"".jobqueue jq
 LEFT JOIN ""{_options.SchemaName}"".job j ON jq.jobid = j.id
 LEFT JOIN ""{_options.SchemaName}"".state s ON s.id = j.stateid
-WHERE jq.queue = {queue} AND 
+WHERE jq.queue = '{queue}' AND 
 jq.fetchedat {fetchCondition}
 LIMIT {perPage} OFFSET {@from};";
 
