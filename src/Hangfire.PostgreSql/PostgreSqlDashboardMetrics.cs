@@ -1,8 +1,10 @@
 using Dapper;
+using Hangfire.Annotations;
 using Hangfire.Dashboard;
 
 namespace Hangfire.PostgreSql
 {
+    [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
     public static class PostgreSqlDashboardMetrics
     {
         public static readonly DashboardMetric MaxConnections = new DashboardMetric(

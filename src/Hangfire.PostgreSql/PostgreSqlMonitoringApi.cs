@@ -14,6 +14,9 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlMonitoringApi : IMonitoringApi
     {
+        private const string AscOrder = "ASC";
+        private const string DescOrder = "DESC";
+
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly IPersistentJobQueueMonitoringApi _queueMonitoringApi;
         private readonly PostgreSqlStorageOptions _options;
@@ -43,8 +46,8 @@ namespace Hangfire.PostgreSql
         public long ProcessingCount()
             => GetNumberOfJobsByStateName(ProcessingState.StateName);
 
-        public JobList<ProcessingJobDto> ProcessingJobs(int @from, int count)
-            => GetJobs(@from, count,
+        public JobList<ProcessingJobDto> ProcessingJobs(int from, int count)
+            => GetJobs(from, count,
                    ProcessingState.StateName,
                    (sqlJob, job, stateData) => new ProcessingJobDto
                    {
@@ -53,8 +56,8 @@ namespace Hangfire.PostgreSql
                        StartedAt = JobHelper.DeserializeDateTime(stateData["StartedAt"]),
                    });
 
-        public JobList<ScheduledJobDto> ScheduledJobs(int @from, int count)
-            => GetJobs(@from, count,
+        public JobList<ScheduledJobDto> ScheduledJobs(int from, int count)
+            => GetJobs(from, count,
                    ScheduledState.StateName,
                    (sqlJob, job, stateData) => new ScheduledJobDto
                    {
@@ -74,9 +77,8 @@ namespace Hangfire.PostgreSql
             List<Entities.Server> serverDtos;
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                serverDtos = connectionHolder.Connection.Query<Entities.Server>(
-                        @"SELECT * FROM """ + _options.SchemaName + @""".""server""")
-                    .ToList();
+                var query = $@"SELECT * FROM ""{_options.SchemaName}"".""server""";
+                serverDtos = connectionHolder.Connection.Query<Entities.Server>(query).ToList();
             }
 
             var servers = new List<ServerDto>(serverDtos.Count);
@@ -96,8 +98,8 @@ namespace Hangfire.PostgreSql
             return servers;
         }
 
-        public JobList<FailedJobDto> FailedJobs(int @from, int count)
-            => GetJobs(@from,
+        public JobList<FailedJobDto> FailedJobs(int from, int count)
+            => GetJobs(from,
                    count,
                    FailedState.StateName,
                    (sqlJob, job, stateData) => new FailedJobDto
@@ -108,10 +110,10 @@ namespace Hangfire.PostgreSql
                        ExceptionMessage = stateData["ExceptionMessage"],
                        ExceptionType = stateData["ExceptionType"],
                        FailedAt = JobHelper.DeserializeNullableDateTime(stateData["FailedAt"])
-                   });
+                   }, DescOrder);
 
-        public JobList<SucceededJobDto> SucceededJobs(int @from, int count)
-            => GetJobs(@from,
+        public JobList<SucceededJobDto> SucceededJobs(int from, int count)
+            => GetJobs(from,
                    count,
                    SucceededState.StateName,
                    (sqlJob, job, stateData) => new SucceededJobDto
@@ -123,17 +125,17 @@ namespace Hangfire.PostgreSql
                             (long?)long.Parse(stateData["Latency"])
                            : null,
                        SucceededAt = JobHelper.DeserializeNullableDateTime(stateData["SucceededAt"])
-                   });
+                   }, DescOrder);
 
-        public JobList<DeletedJobDto> DeletedJobs(int @from, int count)
-            => GetJobs(@from,
+        public JobList<DeletedJobDto> DeletedJobs(int from, int count)
+            => GetJobs(from,
                    count,
                    DeletedState.StateName,
                    (sqlJob, job, stateData) => new DeletedJobDto
                    {
                        Job = job,
                        DeletedAt = JobHelper.DeserializeNullableDateTime(stateData["DeletedAt"])
-                   });
+                   }, DescOrder);
 
         public IList<QueueWithTopEnqueuedJobsDto> Queues()
         {
@@ -157,11 +159,11 @@ namespace Hangfire.PostgreSql
             return queueInfos;
         }
 
-        public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int @from, int perPage)
+        public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int from, int perPage)
             => _queueMonitoringApi.EnqueuedJobs(queue, from, perPage);
 
-        public JobList<FetchedJobDto> FetchedJobs(string queue, int @from, int perPage)
-            => _queueMonitoringApi.FetchedJobs(queue, @from, perPage);
+        public JobList<FetchedJobDto> FetchedJobs(string queue, int from, int perPage)
+            => _queueMonitoringApi.FetchedJobs(queue, from, perPage);
 
         public IDictionary<DateTime, long> HourlySucceededJobs()
             => GetHourlyTimelineStats(SucceededState.StateName);
@@ -347,7 +349,7 @@ WHERE statename = @state;
             }
         }
 
-        private JobList<TDto> GetJobs<TDto>(int @from, int count, string stateName, Utils.JobSelector<TDto> selector)
+        private JobList<TDto> GetJobs<TDto>(int from, int count, string stateName, Utils.JobSelector<TDto> selector, string sorting = AscOrder)
         {
             var query = $@"
 SELECT j.id ""Id"",
@@ -362,12 +364,12 @@ SELECT j.id ""Id"",
 FROM ""{_options.SchemaName}"".job j
 LEFT JOIN ""{_options.SchemaName}"".state s ON j.stateid = s.id
 WHERE j.statename = @stateName 
-ORDER BY j.id
+ORDER BY {sorting} j.id
 LIMIT @count OFFSET @start;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                var parameters = new { stateName = stateName, start = @from, count = count };
+                var parameters = new { stateName = stateName, start = from, count = count };
                 var jobs = connectionHolder.Connection.Query<SqlJob>(query, parameters).ToList();
                 return Utils.DeserializeJobs(jobs, selector);
             }
