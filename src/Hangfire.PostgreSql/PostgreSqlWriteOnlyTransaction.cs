@@ -235,9 +235,10 @@ AND ""id"" NOT IN (
             if (keyValuePairs == null) throw new ArgumentNullException("keyValuePairs");
 
             var sql = $@"
-INSERT INTO ""{_options.SchemaName}"".""hash""(""key"", ""field"", ""value"")
+INSERT INTO ""{_options.SchemaName}"".""hash"" (""key"", ""field"", ""value"")
 VALUES (@key, @field, @value)
-ON CONFLICT DO UPDATE
+ON CONFLICT (""key"", ""field"")
+DO UPDATE SET ""value"" = @value
 ";
 
             foreach (var keyValuePair in keyValuePairs)

@@ -236,10 +236,9 @@ DO UPDATE SET ""value"" = @value
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                return connectionHolder.Connection.Query<string>(
-                        @"
+                return connectionHolder.Connection.Query<string>($@"
 SELECT ""value"" 
-FROM """ + _options.SchemaName + @""".""set"" 
+FROM ""{_options.SchemaName}"".""set"" 
 WHERE ""key"" = @key 
 AND ""score"" BETWEEN @from AND @to 
 ORDER BY ""score"" LIMIT 1;
@@ -254,7 +253,7 @@ ORDER BY ""score"" LIMIT 1;
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
 
-            var sql = @"
+            var sql = $@"
 INSERT INTO ""{_options.SchemaName}"".""hash""(""key"", ""field"", ""value"")
 VALUES (@key, @field, @value)
 ON CONFLICT (""key"", ""field"")
