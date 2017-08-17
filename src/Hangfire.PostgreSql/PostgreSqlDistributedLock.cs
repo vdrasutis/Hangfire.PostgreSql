@@ -1,7 +1,7 @@
 using System;
 using System.Data;
 using System.Diagnostics;
-using System.Threading.Tasks;
+using System.Threading;
 using Dapper;
 using Npgsql;
 
@@ -93,7 +93,7 @@ WHERE NOT EXISTS (
                 if (sleepDuration > maxSleepTimeMilliseconds) sleepDuration = maxSleepTimeMilliseconds;
                 if (sleepDuration > 0)
                 {
-                    Task.Delay((int)sleepDuration).Wait();
+                    Thread.Sleep((int)sleepDuration);
                 }
                 else
                 {
