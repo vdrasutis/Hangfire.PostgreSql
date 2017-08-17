@@ -167,9 +167,10 @@ VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long)expireIn.Total
         public override void AddToSet(string key, string value, double score)
         {
             var query = $@"
-INSERT INTO ""{_options.SchemaName}"".""set""(""key"", ""value"", ""score"")
+INSERT INTO ""{_options.SchemaName}"".""set"" (""key"", ""value"", ""score"")
 VALUES (@key, @value, @score)
-ON CONFLICT DO UPDATE
+ON CONFLICT (""key"", ""value"")
+DO UPDATE SET ""score"" = @score
 ";
 
             QueueCommand((con, trx) => con.Execute(

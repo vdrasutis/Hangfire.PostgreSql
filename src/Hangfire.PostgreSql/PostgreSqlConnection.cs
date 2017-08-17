@@ -188,7 +188,8 @@ WHERE j.id = @jobId;
             var query = @"
 INSERT INTO """ + _options.SchemaName + @""".""jobparameter""(""jobid"", ""name"", ""value"")
 VALUES (@jobId, @name , @value)
-ON CONFLICT DO UPDATE
+ON CONFLICT (""jobid"", ""name"")
+DO UPDATE SET ""value"" = @value
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -256,7 +257,8 @@ ORDER BY ""score"" LIMIT 1;
             var sql = @"
 INSERT INTO ""{_options.SchemaName}"".""hash""(""key"", ""field"", ""value"")
 VALUES (@key, @field, @value)
-ON CONFLICT DO UPDATE
+ON CONFLICT (""key"", ""field"")
+DO UPDATE SET ""field"" = @field
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -302,9 +304,10 @@ ON CONFLICT DO UPDATE
             };
 
             var query = @"
-INSERT INTO """ + _options.SchemaName + @""".""server""(""id"", ""data"", ""lastheartbeat"")
-VALUES (@serverId, @data, NOW() AT TIME ZONE 'UTC')
-ON CONFLICT DO UPDATE
+INSERT INTO """ + _options.SchemaName + @""".""server"" (""id"", ""data"", ""lastheartbeat"")
+VALUES (@id, @data, NOW() AT TIME ZONE 'UTC')
+ON CONFLICT (""id"")
+DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
