@@ -50,8 +50,8 @@ namespace Hangfire.PostgreSql
             {
                 connection = CreateConnectionIfNeeded();
                 if (connection != null) return connection;
-
-                Task.Delay(5).Wait();
+                Thread.Sleep(3);
+                
             }
             return connection;
         }
