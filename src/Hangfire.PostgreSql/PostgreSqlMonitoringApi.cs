@@ -364,7 +364,7 @@ SELECT j.id ""Id"",
 FROM ""{_options.SchemaName}"".job j
 LEFT JOIN ""{_options.SchemaName}"".state s ON j.stateid = s.id
 WHERE j.statename = @stateName 
-ORDER BY {sorting} j.id
+ORDER BY j.id {sorting} 
 LIMIT @count OFFSET @start;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
