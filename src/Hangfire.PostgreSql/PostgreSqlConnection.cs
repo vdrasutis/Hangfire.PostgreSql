@@ -261,7 +261,7 @@ DO UPDATE SET ""field"" = @field
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
-            using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.Serializable))
+            using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.RepeatableRead))
             {
                 foreach (var keyValuePair in keyValuePairs)
                 {
