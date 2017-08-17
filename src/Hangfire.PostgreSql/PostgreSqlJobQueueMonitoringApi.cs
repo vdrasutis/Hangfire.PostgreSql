@@ -11,6 +11,9 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlJobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
     {
+        private const string EnqueuedFetchCondition = "IS NULL";
+        private const string FetchedFetchCondition = "IS NOT NULL";
+
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
 
@@ -35,9 +38,9 @@ FROM ""{_options.SchemaName}"".jobqueue;
             }
         }
 
-        public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int @from, int perPage)
+        public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int from, int perPage)
         {
-            var enqueuedJobsQuery = GetQuery(queue, @from, perPage, "IS NULL");
+            var enqueuedJobsQuery = GetQuery(queue, @from, perPage, EnqueuedState.StateName, EnqueuedFetchCondition);
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -56,9 +59,9 @@ FROM ""{_options.SchemaName}"".jobqueue;
             }
         }
 
-        public JobList<FetchedJobDto> FetchedJobs(string queue, int @from, int perPage)
+        public JobList<FetchedJobDto> FetchedJobs(string queue, int from, int perPage)
         {
-            var fetchedJobsQuery = GetQuery(queue, @from, perPage, "IS NOT NULL");
+            var fetchedJobsQuery = GetQuery(queue, @from, perPage, ProcessingState.StateName, FetchedFetchCondition);
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -75,8 +78,7 @@ FROM ""{_options.SchemaName}"".jobqueue;
             }
         }
 
-
-        private string GetQuery(string queue, int @from, int perPage, string fetchCondition) => $@"
+        private string GetQuery(string queue, int @from, int perPage, string stateName, string fetchCondition) => $@"
 SELECT j.id ""Id"",
        j.invocationdata ""InvocationData"", 
        j.arguments ""Arguments"", 
@@ -88,9 +90,10 @@ SELECT j.id ""Id"",
 FROM ""{_options.SchemaName}"".jobqueue jq
 LEFT JOIN ""{_options.SchemaName}"".job j ON jq.jobid = j.id
 LEFT JOIN ""{_options.SchemaName}"".state s ON s.id = j.stateid
-WHERE jq.queue = '{queue}' AND 
-jq.fetchedat {fetchCondition}
-LIMIT {perPage} OFFSET {@from};";
+WHERE jq.queue = '{queue}'
+AND jq.fetchedat {fetchCondition}
+AND s.name = {stateName}
+LIMIT {perPage} OFFSET {from};";
 
         public (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue)
         {
