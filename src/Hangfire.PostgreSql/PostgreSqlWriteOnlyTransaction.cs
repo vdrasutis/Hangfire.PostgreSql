@@ -166,29 +166,14 @@ VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long)expireIn.Total
 
         public override void AddToSet(string key, string value, double score)
         {
-            var addSql = $@"
-WITH ""inputvalues"" AS (
-	SELECT @key ""key"", @value ""value"", @score ""score""
-), ""updatedrows"" AS ( 
-	UPDATE ""{_options.SchemaName}"".""set"" ""updatetarget""
-	SET ""score"" = ""inputvalues"".""score""
-	FROM ""inputvalues""
-	WHERE ""updatetarget"".""key"" = ""inputvalues"".""key""
-	AND ""updatetarget"".""value"" = ""inputvalues"".""value""
-	RETURNING ""updatetarget"".""key"", ""updatetarget"".""value""
-)
+            var query = $@"
 INSERT INTO ""{_options.SchemaName}"".""set""(""key"", ""value"", ""score"")
-SELECT ""key"", ""value"", ""score"" FROM ""inputvalues"" ""insertvalues""
-WHERE NOT EXISTS (
-	SELECT 1 
-	FROM ""updatedrows"" 
-	WHERE ""updatedrows"".""key"" = ""insertvalues"".""key"" 
-	AND ""updatedrows"".""value"" = ""insertvalues"".""value""
-);
+VALUES (@key, @value, @score)
+ON CONFLICT DO UPDATE
 ";
 
             QueueCommand((con, trx) => con.Execute(
-                addSql,
+                query,
                 new { key, value, score }, trx));
         }
 
@@ -249,25 +234,9 @@ AND ""id"" NOT IN (
             if (keyValuePairs == null) throw new ArgumentNullException("keyValuePairs");
 
             var sql = $@"
-WITH ""inputvalues"" AS (
-	SELECT @key ""key"", @field ""field"", @value ""value""
-), ""updatedrows"" AS ( 
-	UPDATE ""{_options.SchemaName}"".""hash"" ""updatetarget""
-	SET ""value"" = ""inputvalues"".""value""
-	FROM ""inputvalues""
-	WHERE ""updatetarget"".""key"" = ""inputvalues"".""key""
-	AND ""updatetarget"".""field"" = ""inputvalues"".""field""
-	RETURNING ""updatetarget"".""key"", ""updatetarget"".""field""
-)
 INSERT INTO ""{_options.SchemaName}"".""hash""(""key"", ""field"", ""value"")
-SELECT ""key"", ""field"", ""value"" 
-FROM ""inputvalues"" ""insertvalues""
-WHERE NOT EXISTS (
-	SELECT 1 
-	FROM ""updatedrows"" 
-	WHERE ""updatedrows"".""key"" = ""insertvalues"".""key"" 
-	AND ""updatedrows"".""field"" = ""insertvalues"".""field""
-);
+VALUES (@key, @field, @value)
+ON CONFLICT DO UPDATE
 ";
 
             foreach (var keyValuePair in keyValuePairs)
@@ -389,7 +358,7 @@ WHERE NOT EXISTS (
                 transaction));
         }
 
-        internal void QueueCommand(Action<NpgsqlConnection, NpgsqlTransaction> action)
+        private void QueueCommand(Action<NpgsqlConnection, NpgsqlTransaction> action)
         {
             _commandQueue.Enqueue(action);
         }

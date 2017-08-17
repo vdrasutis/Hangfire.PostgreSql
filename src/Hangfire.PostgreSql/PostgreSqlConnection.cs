@@ -185,31 +185,16 @@ WHERE j.id = @jobId;
             Guard.ThrowIfNull(id, nameof(id));
             Guard.ThrowIfNull(name, nameof(name));
 
-            var sql = @"
-WITH ""inputvalues"" AS (
-	SELECT @jobid ""jobid"", @name ""name"", @value ""value""
-), ""updatedrows"" AS ( 
-	UPDATE """ + _options.SchemaName + @""".""jobparameter"" ""updatetarget""
-	SET ""value"" = ""inputvalues"".""value""
-	FROM ""inputvalues""
-	WHERE ""updatetarget"".""jobid"" = ""inputvalues"".""jobid""
-	AND ""updatetarget"".""name"" = ""inputvalues"".""name""
-	RETURNING ""updatetarget"".""jobid"", ""updatetarget"".""name""
-)
+            var query = @"
 INSERT INTO """ + _options.SchemaName + @""".""jobparameter""(""jobid"", ""name"", ""value"")
-SELECT ""jobid"", ""name"", ""value"" 
-FROM ""inputvalues"" ""insertvalues""
-WHERE NOT EXISTS (
-	SELECT 1 
-	FROM ""updatedrows"" 
-	WHERE ""updatedrows"".""jobid"" = ""insertvalues"".""jobid"" 
-	AND ""updatedrows"".""name"" = ""insertvalues"".""name""
-);";
+VALUES (@jobId, @name , @value)
+ON CONFLICT DO UPDATE
+";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 var parameters = new { jobId = Convert.ToInt32(id, CultureInfo.InvariantCulture), name, value };
-                connectionHolder.Connection.Execute(sql, parameters);
+                connectionHolder.Connection.Execute(query, parameters);
             }
         }
 
@@ -269,24 +254,9 @@ ORDER BY ""score"" LIMIT 1;
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
 
             var sql = @"
-WITH ""inputvalues"" AS (
-	SELECT @key ""key"", @field ""field"", @value ""value""
-), ""updatedrows"" AS ( 
-	UPDATE """ + _options.SchemaName + @""".""hash"" ""updatetarget""
-	SET ""value"" = ""inputvalues"".""value""
-	FROM ""inputvalues""
-	WHERE ""updatetarget"".""key"" = ""inputvalues"".""key""
-	AND ""updatetarget"".""field"" = ""inputvalues"".""field""
-	RETURNING ""updatetarget"".""key"", ""updatetarget"".""field""
-)
-INSERT INTO """ + _options.SchemaName + @""".""hash""(""key"", ""field"", ""value"")
-SELECT ""key"", ""field"", ""value"" FROM ""inputvalues"" ""insertvalues""
-WHERE NOT EXISTS (
-	SELECT 1 
-	FROM ""updatedrows"" 
-	WHERE ""updatedrows"".""key"" = ""insertvalues"".""key"" 
-	AND ""updatedrows"".""field"" = ""insertvalues"".""field""
-);
+INSERT INTO ""{_options.SchemaName}"".""hash""(""key"", ""field"", ""value"")
+VALUES (@key, @field, @value)
+ON CONFLICT DO UPDATE
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -331,28 +301,15 @@ WHERE NOT EXISTS (
                 StartedAt = DateTime.UtcNow,
             };
 
-            var sql = @"
-WITH ""inputvalues"" AS (
-	SELECT @id ""id"", @data ""data"", NOW() AT TIME ZONE 'UTC' ""lastheartbeat""
-), ""updatedrows"" AS ( 
-	UPDATE """ + _options.SchemaName + @""".""server"" ""updatetarget""
-	SET ""data"" = ""inputvalues"".""data"", ""lastheartbeat"" = ""inputvalues"".""lastheartbeat""
-	FROM ""inputvalues""
-	WHERE ""updatetarget"".""id"" = ""inputvalues"".""id""
-	RETURNING ""updatetarget"".""id""
-)
+            var query = @"
 INSERT INTO """ + _options.SchemaName + @""".""server""(""id"", ""data"", ""lastheartbeat"")
-SELECT ""id"", ""data"", ""lastheartbeat"" FROM ""inputvalues"" ""insertvalues""
-WHERE NOT EXISTS (
-	SELECT 1 
-	FROM ""updatedrows"" 
-	WHERE ""updatedrows"".""id"" = ""insertvalues"".""id"" 
-);
+VALUES (@serverId, @data, NOW() AT TIME ZONE 'UTC')
+ON CONFLICT DO UPDATE
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                connectionHolder.Connection.Execute(sql,
+                connectionHolder.Connection.Execute(query,
                     new { id = serverId, data = JobHelper.ToJson(data) });
             }
         }
