@@ -92,7 +92,7 @@ LEFT JOIN ""{_options.SchemaName}"".job j ON jq.jobid = j.id
 LEFT JOIN ""{_options.SchemaName}"".state s ON s.id = j.stateid
 WHERE jq.queue = '{queue}'
 AND jq.fetchedat {fetchCondition}
-AND s.name = {stateName}
+AND s.name = '{stateName}'
 LIMIT {perPage} OFFSET {from};";
 
         public (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue)
