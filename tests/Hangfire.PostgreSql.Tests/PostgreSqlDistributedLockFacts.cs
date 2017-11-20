@@ -17,7 +17,7 @@ namespace Hangfire.PostgreSql.Tests
         [Fact]
         public void Ctor_ThrowsAnException_WhenResourceIsNullOrEmpty()
         {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions();
+            var options = new PostgreSqlStorageOptions();
 
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new PostgreSqlDistributedLock("", _timeout, new Mock<IPostgreSqlConnectionProvider>().Object, options));
@@ -28,7 +28,7 @@ namespace Hangfire.PostgreSql.Tests
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions();
+            var options = new PostgreSqlStorageOptions();
 
             var exception = Assert.Throws<ArgumentNullException>(
                 () => new PostgreSqlDistributedLock("hello", _timeout, null, options));
@@ -49,7 +49,7 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void Ctor_AcquiresExclusiveApplicationLock()
         {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
+            var options = new PostgreSqlStorageOptions
             {
                 SchemaName = GetSchemaName()
             };
@@ -63,15 +63,14 @@ namespace Hangfire.PostgreSql.Tests
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
                     new { resource = "hello" }).Single();
 
-                Assert.Equal(lockCount, 1);
-                //Assert.Equal("Exclusive", lockMode);
+                Assert.Equal(1, lockCount);
             });
         }
 
         [Fact, CleanDatabase]
         public void Ctor_AcquiresExclusiveApplicationLock_WhenDeadlockIsOccured()
         {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
+            var options = new PostgreSqlStorageOptions
             {
                 SchemaName = GetSchemaName(),
                 DistributedLockTimeout = TimeSpan.FromSeconds(5)
@@ -96,7 +95,7 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void Ctor_ThrowsAnException_IfLockCanNotBeGranted()
         {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
+            var options = new PostgreSqlStorageOptions
             {
                 SchemaName = GetSchemaName()
             };
@@ -128,7 +127,7 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void Dispose_ReleasesExclusiveApplicationLock()
         {
-            PostgreSqlStorageOptions options = new PostgreSqlStorageOptions()
+            var options = new PostgreSqlStorageOptions
             {
                 SchemaName = GetSchemaName()
             };
@@ -142,7 +141,7 @@ namespace Hangfire.PostgreSql.Tests
                     @"select count(*) from """ + GetSchemaName() + @""".""lock"" where ""resource"" = @resource",
                     new { resource = "hello" }).Single();
 
-                Assert.Equal(lockCount, 0);
+                Assert.Equal(0, lockCount);
             });
         }
 

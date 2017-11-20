@@ -19,7 +19,8 @@ namespace Hangfire.PostgreSql.Tests
             Assert.NotEqual("???", metric.Value);
         }
 
-        private static IEnumerable<object[]> GetMetrics()
+        // ReSharper disable once MemberCanBePrivate.Global
+        public static IEnumerable<object[]> GetMetrics()
         {
             yield return new object[] { PostgreSqlDashboardMetrics.MaxConnections };
             yield return new object[] { PostgreSqlDashboardMetrics.DistributedLocksCount };

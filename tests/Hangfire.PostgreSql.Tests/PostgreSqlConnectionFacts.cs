@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -124,7 +123,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 var exception = Assert.Throws<ArgumentNullException>(
                     () => connection.CreateExpiredJob(
-                        Job.FromExpression(() => SampleMethod("hello")),
+                        Job.FromExpression(() => Worker.DoWork("hello")),
                         null,
                         DateTime.UtcNow,
                         TimeSpan.Zero));
@@ -140,7 +139,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 var createdAt = new DateTime(2012, 12, 12);
                 var jobId = connection.CreateExpiredJob(
-                    Job.FromExpression(() => SampleMethod("Hello")),
+                    Job.FromExpression(() => Worker.DoWork("Hello")),
                     new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" } },
                     createdAt,
                     TimeSpan.FromDays(1));
@@ -151,15 +150,15 @@ namespace Hangfire.PostgreSql.Tests
                 var sqlJob = sql.Query(@"select * from """ + GetSchemaName() + @""".""job""").Single();
                 Assert.Equal(jobId, sqlJob.id.ToString());
                 Assert.Equal(createdAt, sqlJob.createdat);
-                Assert.Equal(null, (int?)sqlJob.stateid);
-                Assert.Equal(null, (string)sqlJob.statename);
+                Assert.Null((int?)sqlJob.stateid);
+                Assert.Null((string)sqlJob.statename);
 
                 var invocationData = JobHelper.FromJson<InvocationData>((string)sqlJob.invocationdata);
                 invocationData.Arguments = sqlJob.arguments;
 
                 var job = invocationData.Deserialize();
-                Assert.Equal(typeof(PostgreSqlConnectionFacts), job.Type);
-                Assert.Equal("SampleMethod", job.Method.Name);
+                Assert.Equal(typeof(Worker), job.Type);
+                Assert.Equal(nameof(Worker.DoWork), job.Method.Name);
                 Assert.Equal("Hello", job.Args[0]);
 
                 Assert.True(createdAt.AddDays(1).AddMinutes(-1) < sqlJob.expireat);
@@ -201,7 +200,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
 
             UseConnections((sql, connection) =>
             {
-                var job = Job.FromExpression(() => SampleMethod("wrong"));
+                var job = Job.FromExpression(() => Worker.DoWork("wrong"));
 
                 var jobId = (int)sql.Query(
                     arrangeSql,
@@ -675,7 +674,7 @@ values (@id, '', @heartbeat)";
                 var result = connection.GetAllItemsFromSet("some-set");
 
                 Assert.NotNull(result);
-                Assert.Equal(0, result.Count);
+                Assert.Empty(result);
             });
         }
 
@@ -1300,8 +1299,11 @@ values (@key, @field, @value)";
             return ConnectionUtils.GetSchemaName();
         }
 
-        public static void SampleMethod(string wrong)
+        public static class Worker
         {
+            public static void DoWork(string argument)
+            {
+            }
         }
     }
 }
