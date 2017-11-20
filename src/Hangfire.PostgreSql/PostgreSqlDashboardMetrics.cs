@@ -39,14 +39,18 @@ namespace Hangfire.PostgreSql
 
         private static Metric GetMetricByQuery(RazorPage page, string query)
         {
-            var storage = page.Storage as PostgreSqlStorage;
-            if (storage == null) return new Metric("???");
-
-            using (var connectionHolder = storage.ConnectionProvider.AcquireConnection())
+            if (page.Storage is PostgreSqlStorage storage)
             {
-                var searchPathQuery = $"SET search_path = '{storage.Options.SchemaName}';";
-                var serverVersion = connectionHolder.Connection.ExecuteScalar(searchPathQuery + query);
-                return new Metric(serverVersion?.ToString() ?? "???");
+                using (var connectionHolder = storage.ConnectionProvider.AcquireConnection())
+                {
+                    var searchPathQuery = $"SET search_path = '{storage.Options.SchemaName}';";
+                    var metricValue = connectionHolder.Connection.ExecuteScalar(searchPathQuery + query);
+                    return new Metric(metricValue?.ToString() ?? "???");
+                }
+            }
+            else
+            {
+                return new Metric("???");
             }
         }
     }
