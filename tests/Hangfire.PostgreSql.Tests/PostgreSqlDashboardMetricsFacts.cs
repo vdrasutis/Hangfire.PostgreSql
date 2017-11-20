@@ -6,7 +6,7 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlDashboardMetricsTests
+    public class PostgreSqlDashboardMetricsFacts
     {
         [Theory]
         [MemberData(nameof(GetMetrics))]
