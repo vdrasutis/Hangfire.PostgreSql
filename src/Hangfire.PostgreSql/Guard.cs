@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Hangfire.Annotations;
@@ -24,13 +25,23 @@ namespace Hangfire.PostgreSql
 
         [ContractAnnotation("argument:null => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIfNullOrEmpty([NotNull] string @string, [NotNull] string argumentName)
+        public static void ThrowIfNullOrEmpty([NotNull] string argument, [NotNull] string argumentName)
         {
-            if (string.IsNullOrEmpty(@string))
+            if (string.IsNullOrEmpty(argument))
                 throw new ArgumentNullException(argumentName);
         }
 
-        [ContractAnnotation("argument:null => halt")]
+        [ContractAnnotation("collection:null => halt")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ThrowIfCollectionIsNullOrEmpty<T>(
+            [NotNull] IReadOnlyCollection<T> collection,
+            [NotNull] string argumentName)
+        {
+            if (collection == null) throw new ArgumentNullException(argumentName);
+            if (collection.Count == 0) throw new ArgumentException($"{argumentName} should be non-empty collection", argumentName);
+        }
+
+        [ContractAnnotation("connectionString:null => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ThrowIfConnectionStringIsInvalid([NotNull] string connectionString)
         {
@@ -42,7 +53,7 @@ namespace Hangfire.PostgreSql
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIfValueIsNotPositive(int value, string fieldName)
+        public static void ThrowIfValueIsNotPositive(int value, [NotNull] string fieldName)
         {
             if (value <= 0)
             {
@@ -52,7 +63,7 @@ namespace Hangfire.PostgreSql
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIfValueIsNotPositive(TimeSpan value, string fieldName)
+        public static void ThrowIfValueIsNotPositive(TimeSpan value, [NotNull] string fieldName)
         {
             var message = $"The {fieldName} property value should be positive. Given: {value}.";
 

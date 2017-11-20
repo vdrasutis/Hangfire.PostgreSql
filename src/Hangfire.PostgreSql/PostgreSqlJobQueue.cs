@@ -5,12 +5,11 @@ using System.Threading;
 using Dapper;
 using Hangfire.PostgreSql.Entities;
 using Hangfire.Storage;
-using Npgsql;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    internal class PostgreSqlJobQueue : IPersistentJobQueue
+    internal sealed class PostgreSqlJobQueue : IPersistentJobQueue
     {
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
@@ -26,8 +25,7 @@ namespace Hangfire.PostgreSql
 
         public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
         {
-            if (queues == null) throw new ArgumentNullException(nameof(queues));
-            if (queues.Length == 0) throw new ArgumentException("Queue array must be non-empty.", nameof(queues));
+            Guard.ThrowIfCollectionIsNullOrEmpty(queues, nameof(queues));
 
             long timeoutSeconds = (long)_options.InvisibilityTimeout.Negate().TotalSeconds;
 
@@ -80,18 +78,13 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
         {
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                Enqueue(queue, jobId, connectionHolder.Connection);
-            }
-        }
-
-        public void Enqueue(string queue, string jobId, NpgsqlConnection connection)
-        {
-            string query = $@"
+                string query = $@"
 INSERT INTO ""{_options.SchemaName}"".jobqueue (jobid, queue) 
 VALUES (@jobId, @queue);
 ";
-            var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };
-            connection.Execute(query, parameters);
+                var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };
+                connectionHolder.Connection.Execute(query, parameters);
+            }
         }
     }
 }

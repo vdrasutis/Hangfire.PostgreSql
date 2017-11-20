@@ -116,10 +116,7 @@ VALUES (@jobId, @name, @reason, @createdAt, @data);
                 }, trx));
         }
 
-        public override void AddToQueue(string queue, string jobId)
-        {
-            QueueCommand((con, trx) => _queue.Enqueue(queue, jobId, con));
-        }
+        public override void AddToQueue(string queue, string jobId) => _queue.Enqueue(queue, jobId);
 
         public override void IncrementCounter(string key)
         {
@@ -360,9 +357,6 @@ DO UPDATE SET ""value"" = @value
                 transaction));
         }
 
-        private void QueueCommand(Action<NpgsqlConnection, NpgsqlTransaction> action)
-        {
-            _commandQueue.Enqueue(action);
-        }
+        private void QueueCommand(Action<NpgsqlConnection, NpgsqlTransaction> action) => _commandQueue.Enqueue(action);
     }
 }
