@@ -4,7 +4,7 @@ using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    internal class PostgreSqlConnectionHolder : IDisposable
+    internal sealed class PostgreSqlConnectionHolder : IDisposable
     {
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly NpgsqlConnection _connection;
@@ -37,6 +37,8 @@ namespace Hangfire.PostgreSql
 
         public void Dispose()
         {
+            if (Disposed) return;
+
             _connectionProvider.ReleaseConnection(this);
             Disposed = true;
         }

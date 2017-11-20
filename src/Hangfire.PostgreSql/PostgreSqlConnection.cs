@@ -106,9 +106,9 @@ VALUES (@jobId, @name, @value);
             return jobId.ToString(CultureInfo.InvariantCulture);
         }
 
-        public override JobData GetJobData(string id)
+        public override JobData GetJobData(string jobId)
         {
-            Guard.ThrowIfNull(id, nameof(id));
+            Guard.ThrowIfNull(jobId, nameof(jobId));
 
             var sql = $@"
 SELECT ""invocationdata"" ""invocationData"", ""statename"" ""stateName"", ""arguments"", ""createdat"" ""createdAt"" 
@@ -120,7 +120,7 @@ WHERE ""id"" = @id;
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 jobData = connectionHolder.Connection
-                    .Query<SqlJob>(sql, new { id = Convert.ToInt32(id, CultureInfo.InvariantCulture) })
+                    .Query<SqlJob>(sql, new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) })
                     .SingleOrDefault();
             }
 

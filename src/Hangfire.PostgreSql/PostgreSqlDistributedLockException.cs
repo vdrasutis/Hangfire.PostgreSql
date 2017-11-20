@@ -4,18 +4,14 @@ using System;
 namespace Hangfire.PostgreSql
 {
     [Serializable]
-    internal class PostgreSqlDistributedLockException : Exception
+    public class PostgreSqlDistributedLockException : Exception
     {
-        public PostgreSqlDistributedLockException() : base()
-        {
-        }
+        public PostgreSqlDistributedLockException() { }
 
-        public PostgreSqlDistributedLockException(string message) : base(message)
-        {
-        }
+        public PostgreSqlDistributedLockException(string message) 
+            : base(message) { }
 
-        public PostgreSqlDistributedLockException(string message, Exception innerException) : base(message, innerException)
-        {
-        }
+        public PostgreSqlDistributedLockException(string message, Exception innerException) 
+            : base(message, innerException) { }
     }
 }

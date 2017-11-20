@@ -158,7 +158,7 @@ VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long)expireIn.Total
 
         public override void AddToSet(string key, string value)
         {
-            AddToSet(key, value, 0.0);
+            AddToSet(key, value, 0.0d);
         }
 
         public override void AddToSet(string key, string value, double score)

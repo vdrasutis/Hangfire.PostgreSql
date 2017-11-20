@@ -2,13 +2,12 @@
 using System.Collections.Concurrent;
 using System.Data;
 using System.Threading;
-using System.Threading.Tasks;
 using Hangfire.Logging;
 using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    internal class PostgreSqlConnectionProvider : IPostgreSqlConnectionProvider
+    internal sealed class PostgreSqlConnectionProvider : IPostgreSqlConnectionProvider
     {
         private static readonly ILog Logger = LogProvider.GetLogger(typeof(PostgreSqlConnectionProvider));
 
@@ -51,7 +50,6 @@ namespace Hangfire.PostgreSql
                 connection = CreateConnectionIfNeeded();
                 if (connection != null) return connection;
                 Thread.Sleep(5);
-                
             }
             return connection;
         }
