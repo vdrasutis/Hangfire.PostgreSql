@@ -19,12 +19,12 @@ namespace Hangfire.PostgreSql
 
         public static readonly DashboardMetric PostgreSqlLocksCount = new DashboardMetric(
             "pg:locks:count",
-            "PostgreSql Locks Count",
+            "PostgreSql Locks",
             page => GetMetricByQuery(page, @"SELECT COUNT(*) FROM pg_locks;"));
 
         public static readonly DashboardMetric DistributedLocksCount = new DashboardMetric(
             "app:locks:count",
-            "Distributed Locks Count",
+            "Distributed Locks",
             page => GetMetricByQuery(page, @"SELECT COUNT(*) FROM lock;"));
 
         public static readonly DashboardMetric PostgreSqlServerVersion = new DashboardMetric(
