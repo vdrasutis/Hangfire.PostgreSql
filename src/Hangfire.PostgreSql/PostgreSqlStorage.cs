@@ -40,6 +40,9 @@ namespace Hangfire.PostgreSql
             Guard.ThrowIfNull(options, nameof(options));
             Guard.ThrowIfConnectionStringIsInvalid(connectionString);
 
+            var builder = new NpgsqlConnectionStringBuilder(connectionString) { SearchPath = options.SchemaName ?? "hangfire" };
+            connectionString = builder.ToString();
+
             _options = options;
             _connectionProvider = new PostgreSqlConnectionProvider(connectionString, _options);
 
@@ -48,7 +51,6 @@ namespace Hangfire.PostgreSql
             _postgreSqlConnection = new PostgreSqlConnection(_connectionProvider, queue, _options);
             _postgreSqlMonitoringApi = new PostgreSqlMonitoringApi(_connectionProvider, queueMonitoringApi, _options);
 
-            var builder = new NpgsqlConnectionStringBuilder(connectionString);
             _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {_options.SchemaName}";
             if (_options.PrepareSchemaIfNecessary)
             {
@@ -72,7 +74,7 @@ namespace Hangfire.PostgreSql
             => new IServerComponent[]
 #pragma warning restore 618
             {
-                new ExpirationManager(_connectionProvider, _options),
+                new ExpirationManager(_connectionProvider),
                 new CountersAggregationManager(_connectionProvider, _options)
             };
 

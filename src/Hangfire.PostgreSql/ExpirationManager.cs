@@ -27,18 +27,16 @@ namespace Hangfire.PostgreSql
         };
 
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
-        private readonly PostgreSqlStorageOptions _options;
         private readonly TimeSpan _checkInterval;
 
-        public ExpirationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
-            : this(connectionProvider, options, TimeSpan.FromHours(1))
+        public ExpirationManager(IPostgreSqlConnectionProvider connectionProvider)
+            : this(connectionProvider, TimeSpan.FromHours(1))
         {
         }
 
-        public ExpirationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options, TimeSpan checkInterval)
+        public ExpirationManager(IPostgreSqlConnectionProvider connectionProvider, TimeSpan checkInterval)
         {
             _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
             _checkInterval = checkInterval;
         }
 
@@ -52,20 +50,20 @@ namespace Hangfire.PostgreSql
             {
                 Logger.DebugFormat("Removing outdated records from table '{0}'...", table);
 
-                int removedCount = 0;
-
+                int removedCount;
                 do
                 {
                     using (var connectionHolder = _connectionProvider.AcquireConnection())
                     using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
                     {
+                        // Pgsql doesn't support parameters for table names that's why you're going this 'awful' sql query interpolation
                         var query = $@"
-DELETE FROM ""{_options.SchemaName}"".{table} 
+DELETE FROM {table}
 WHERE id IN (
     SELECT id
-    FROM ""{_options.SchemaName}"".{table}
+    FROM {table}
     WHERE expireat < NOW() AT TIME ZONE 'UTC' 
-    LIMIT {NumberOfRecordsInSinglePass.ToString(CultureInfo.InvariantCulture)}
+    LIMIT {Convert.ToString(NumberOfRecordsInSinglePass, CultureInfo.InvariantCulture)}
 )";
                         removedCount = connectionHolder.Connection.Execute(query, transaction: transaction);
                         transaction.Commit();

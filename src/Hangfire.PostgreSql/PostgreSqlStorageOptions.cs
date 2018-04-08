@@ -61,6 +61,7 @@ namespace Hangfire.PostgreSql
 
         public bool PrepareSchemaIfNecessary { get; set; }
 
+        [Obsolete("This field will be removed in next version. Please use Search Path parameter in NpgSql connection string http://www.npgsql.org/doc/connection-string-parameters.html. Currently value of this parameter will be used for overwriting Search Path.")]
         public string SchemaName { get; set; }
     }
 }

@@ -21,7 +21,9 @@ namespace Hangfire.PostgreSql
             get
             {
                 if (Disposed)
+                {
                     throw new ObjectDisposedException(nameof(Connection));
+                }
 
                 if (_connection.State == ConnectionState.Closed)
                 {

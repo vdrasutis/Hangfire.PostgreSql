@@ -59,7 +59,7 @@ namespace Hangfire.PostgreSql
             Guard.ThrowIfNull(parameters, nameof(parameters));
 
             var createJobSql = $@"
-INSERT INTO ""{_options.SchemaName}"".job (invocationdata, arguments, createdat, expireat)
+INSERT INTO job (invocationdata, arguments, createdat, expireat)
 VALUES (@invocationData, @arguments, @createdAt, @expireAt) 
 RETURNING id;
 ";
@@ -95,7 +95,7 @@ RETURNING id;
                 }
 
                 var insertParameterSql = $@"
-INSERT INTO ""{_options.SchemaName}"".jobparameter (jobid, name, value)
+INSERT INTO jobparameter (jobid, name, value)
 VALUES (@jobId, @name, @value);
 ";
                 using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -112,7 +112,7 @@ VALUES (@jobId, @name, @value);
 
             var sql = $@"
 SELECT ""invocationdata"" ""invocationData"", ""statename"" ""stateName"", ""arguments"", ""createdat"" ""createdAt"" 
-FROM ""{_options.SchemaName}"".""job"" 
+FROM job 
 WHERE ""id"" = @id;
 ";
 
@@ -157,8 +157,8 @@ WHERE ""id"" = @id;
 
             var query = $@"
 SELECT s.name ""Name"", s.reason ""Reason"", s.data ""Data""
-FROM ""{_options.SchemaName}"".state s
-INNER JOIN ""{_options.SchemaName}"".job j on j.stateid = s.id
+FROM state s
+INNER JOIN job j on j.stateid = s.id
 WHERE j.id = @jobId;
 ";
 
@@ -186,7 +186,7 @@ WHERE j.id = @jobId;
             Guard.ThrowIfNull(name, nameof(name));
 
             var query = @"
-INSERT INTO """ + _options.SchemaName + @""".""jobparameter""(""jobid"", ""name"", ""value"")
+INSERT INTO jobparameter (""jobid"", ""name"", ""value"")
 VALUES (@jobId, @name , @value)
 ON CONFLICT (""jobid"", ""name"")
 DO UPDATE SET ""value"" = @value
@@ -238,7 +238,7 @@ DO UPDATE SET ""value"" = @value
             {
                 return connectionHolder.Connection.Query<string>($@"
 SELECT ""value"" 
-FROM ""{_options.SchemaName}"".""set"" 
+FROM ""set"" 
 WHERE ""key"" = @key 
 AND ""score"" BETWEEN @from AND @to 
 ORDER BY ""score"" LIMIT 1;
@@ -265,7 +265,9 @@ DO UPDATE SET ""field"" = @field
             {
                 foreach (var keyValuePair in keyValuePairs)
                 {
-                    connectionHolder.Connection.Execute(sql, new { key = key, field = keyValuePair.Key, value = keyValuePair.Value },
+                    transaction.Connection.Execute(
+                        sql, 
+                        new { key = key, field = keyValuePair.Key, value = keyValuePair.Value },
                         transaction);
                 }
                 transaction.Commit();
@@ -277,14 +279,18 @@ DO UPDATE SET ""field"" = @field
             if (key == null) throw new ArgumentNullException(nameof(key));
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
+            using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
             {
-                var result = connectionHolder.Connection.Query<SqlHash>(
-                        $@"SELECT ""field"" ""Field"", ""value"" ""Value"" 
-					FROM ""{_options.SchemaName}"".""hash"" 
-					WHERE ""key"" = @key;
-					",
-                        new { key = key })
+                var query = 
+$@"SELECT ""field"" ""Field"", ""value"" ""Value"" 
+FROM ""hash"" 
+WHERE ""key"" = @key;";
+                var result = transaction.Connection.Query<SqlHash>(
+                        query,
+                        new { key = key },
+                        transaction)
                     .ToDictionary(x => x.Field, x => x.Value);
+                transaction.Commit();
 
                 return result.Count != 0 ? result : null;
             }

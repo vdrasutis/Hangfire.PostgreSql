@@ -77,7 +77,7 @@ namespace Hangfire.PostgreSql
             List<Entities.Server> serverDtos;
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                var query = $@"SELECT * FROM ""{_options.SchemaName}"".""server""";
+                const string query = @"SELECT * FROM server";
                 serverDtos = connectionHolder.Connection.Query<Entities.Server>(query).ToList();
             }
 
@@ -173,19 +173,19 @@ namespace Hangfire.PostgreSql
 
         public JobDetailsDto JobDetails(string jobId)
         {
-            string sql = $@"
+            const string sql = @"
 SELECT id ""Id"", 
        invocationdata ""InvocationData"", 
        arguments ""Arguments"", 
        createdat ""CreatedAt"", 
        expireat ""ExpireAt"" 
-FROM ""{_options.SchemaName}"".""job"" 
+FROM job
 WHERE id = @id;
 
 SELECT jobid ""JobId"", 
        name ""Name"",
        value ""Value"" 
-FROM ""{_options.SchemaName}"".jobparameter 
+FROM jobparameter 
 WHERE jobid = @id;
 
 SELECT jobid ""JobId"", 
@@ -193,7 +193,7 @@ SELECT jobid ""JobId"",
        reason ""Reason"", 
        createdat ""CreatedAt"", 
        data ""Data"" 
-FROM ""{_options.SchemaName}"".state 
+FROM state 
 WHERE jobid = @id 
 ORDER BY id DESC;
 ";
@@ -235,26 +235,26 @@ ORDER BY id DESC;
 
         public StatisticsDto GetStatistics()
         {
-            var sql = $@"
+            const string sql = @"
 SELECT statename ""State"", 
        COUNT(*) ""Count"" 
-FROM ""{_options.SchemaName}"".job
+FROM job
 WHERE statename IS NOT NULL
 GROUP BY statename;
 
 SELECT COUNT(*) 
-FROM ""{_options.SchemaName}"".server;
+FROM server;
 
 SELECT SUM(value) 
-FROM ""{_options.SchemaName}"".counter 
+FROM counter 
 WHERE key = 'stats:succeeded';
 
 SELECT SUM(value) 
-FROM ""{_options.SchemaName}"".counter 
+FROM counter 
 WHERE key = 'stats:deleted';
 
 SELECT COUNT(*) 
-FROM ""{_options.SchemaName}"".set 
+FROM set 
 WHERE key = 'recurring-jobs';
 ";
 
@@ -303,9 +303,9 @@ WHERE key = 'recurring-jobs';
 
         private Dictionary<DateTime, long> GetTimelineStats(IDictionary<string, DateTime> keyMaps)
         {
-            var query = $@"
+            const string query = @"
 SELECT key, COUNT(*) ""count"" 
-FROM ""{_options.SchemaName}"".counter 
+FROM counter 
 WHERE key = ANY (@keys)
 GROUP BY key;
 ";
@@ -336,9 +336,9 @@ GROUP BY key;
 
         private long GetNumberOfJobsByStateName(string stateName)
         {
-            string sqlQuery = $@"
+            const string sqlQuery = @"
 SELECT COUNT(*) 
-FROM ""{_options.SchemaName}"".job 
+FROM job 
 WHERE statename = @state;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -361,15 +361,15 @@ SELECT j.id ""Id"",
        j.statename ""StateName"",
        s.reason ""StateReason"",
        s.data ""StateData""
-FROM ""{_options.SchemaName}"".job j
-LEFT JOIN ""{_options.SchemaName}"".state s ON j.stateid = s.id
+FROM job j
+LEFT JOIN state s ON j.stateid = s.id
 WHERE j.statename = @stateName 
 ORDER BY j.id {sorting} 
 LIMIT @count OFFSET @start;
 ";
+            var parameters = new { stateName = stateName, start = @from, count = count };
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                var parameters = new { stateName = stateName, start = from, count = count };
                 var jobs = connectionHolder.Connection.Query<SqlJob>(query, parameters).ToList();
                 return Utils.DeserializeJobs(jobs, selector);
             }
