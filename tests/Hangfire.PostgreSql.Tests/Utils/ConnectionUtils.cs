@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using Npgsql;
 
 namespace Hangfire.PostgreSql.Tests.Utils
@@ -18,10 +17,9 @@ namespace Hangfire.PostgreSql.Tests.Utils
         private const string DefaultConnectionStringTemplate =
             @"Server=127.0.0.1;Port=5432;Database=postgres;User Id=postgres;Password=password;Pooling=false;Search Path=hangfire";
 
-        private static readonly Lazy<IPostgreSqlConnectionProvider> LazyProvider
-            = new Lazy<IPostgreSqlConnectionProvider>(
-                () => new PostgreSqlConnectionProvider(GetConnectionString(),
-                    new PostgreSqlStorageOptions()), LazyThreadSafetyMode.ExecutionAndPublication);
+        private static readonly IPostgreSqlConnectionProvider ConnectionProvider = new PostgreSqlConnectionProvider(
+            GetConnectionString(),
+            new PostgreSqlStorageOptions { SchemaName = DefaultSchemaName });
 
         public static string GetDatabaseName() => Environment.GetEnvironmentVariable(DatabaseVariable) ?? DefaultDatabaseName;
 
@@ -31,10 +29,9 @@ namespace Hangfire.PostgreSql.Tests.Utils
 
         public static string GetConnectionString() => string.Format(GetConnectionStringTemplate(), GetDatabaseName());
 
-        private static string GetConnectionStringTemplate() => Environment.GetEnvironmentVariable(ConnectionStringTemplateVariable)
-                                                               ?? DefaultConnectionStringTemplate;
+        private static string GetConnectionStringTemplate() => Environment.GetEnvironmentVariable(ConnectionStringTemplateVariable) ?? DefaultConnectionStringTemplate;
 
-        public static IPostgreSqlConnectionProvider CreateConnection() => LazyProvider.Value;
+        public static IPostgreSqlConnectionProvider CreateConnection() => ConnectionProvider;
 
         public static NpgsqlConnection CreateNpgConnection() => new NpgsqlConnection(GetConnectionString());
     }

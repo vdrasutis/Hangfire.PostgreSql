@@ -155,7 +155,7 @@ WHERE ""id"" = @id;
         {
             Guard.ThrowIfNull(jobId, nameof(jobId));
 
-            var query = $@"
+            const string query = @"
 SELECT s.name ""Name"", s.reason ""Reason"", s.data ""Data""
 FROM state s
 INNER JOIN job j on j.stateid = s.id
@@ -185,7 +185,7 @@ WHERE j.id = @jobId;
             Guard.ThrowIfNull(id, nameof(id));
             Guard.ThrowIfNull(name, nameof(name));
 
-            var query = @"
+            const string query = @"
 INSERT INTO jobparameter (""jobid"", ""name"", ""value"")
 VALUES (@jobId, @name , @value)
 ON CONFLICT (""jobid"", ""name"")
@@ -204,7 +204,7 @@ DO UPDATE SET ""value"" = @value
             Guard.ThrowIfNull(id, nameof(id));
             Guard.ThrowIfNull(name, nameof(name));
 
-            var query = $@"SELECT value FROM ""{_options.SchemaName}"".jobparameter WHERE jobid = @id AND name = @name;";
+            const string query = @"SELECT value FROM jobparameter WHERE jobid = @id AND name = @name;";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -217,8 +217,7 @@ DO UPDATE SET ""value"" = @value
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
-            var query = $@"SELECT ""value"" FROM ""{_options.SchemaName}"".""set"" WHERE ""key"" = @key;";
-
+            const string query = @"SELECT ""value"" FROM ""set"" WHERE ""key"" = @key;";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -236,14 +235,14 @@ DO UPDATE SET ""value"" = @value
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                return connectionHolder.Connection.Query<string>($@"
+                const string query = @"
 SELECT ""value"" 
 FROM ""set"" 
 WHERE ""key"" = @key 
 AND ""score"" BETWEEN @from AND @to 
 ORDER BY ""score"" LIMIT 1;
-",
-                        new { key, from = fromScore, to = toScore })
+";
+                return connectionHolder.Connection.Query<string>(query, new { key, from = fromScore, to = toScore })
                     .SingleOrDefault();
             }
         }
@@ -253,8 +252,8 @@ ORDER BY ""score"" LIMIT 1;
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
 
-            var sql = $@"
-INSERT INTO ""{_options.SchemaName}"".""hash""(""key"", ""field"", ""value"")
+            const string query = @"
+INSERT INTO ""hash""(""key"", ""field"", ""value"")
 VALUES (@key, @field, @value)
 ON CONFLICT (""key"", ""field"")
 DO UPDATE SET ""field"" = @field
@@ -266,7 +265,7 @@ DO UPDATE SET ""field"" = @field
                 foreach (var keyValuePair in keyValuePairs)
                 {
                     transaction.Connection.Execute(
-                        sql, 
+                        query,
                         new { key = key, field = keyValuePair.Key, value = keyValuePair.Value },
                         transaction);
                 }
@@ -281,8 +280,7 @@ DO UPDATE SET ""field"" = @field
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
             {
-                var query = 
-$@"SELECT ""field"" ""Field"", ""value"" ""Value"" 
+                const string query = @"SELECT ""field"" ""Field"", ""value"" ""Value"" 
 FROM ""hash"" 
 WHERE ""key"" = @key;";
                 var result = transaction.Connection.Query<SqlHash>(
@@ -298,8 +296,8 @@ WHERE ""key"" = @key;";
 
         public override void AnnounceServer(string serverId, ServerContext context)
         {
-            if (serverId == null) throw new ArgumentNullException(nameof(serverId));
-            if (context == null) throw new ArgumentNullException(nameof(context));
+            Guard.ThrowIfNull(serverId, nameof(serverId));
+            Guard.ThrowIfNull(context, nameof(context));
 
             var data = new ServerData
             {
@@ -308,8 +306,8 @@ WHERE ""key"" = @key;";
                 StartedAt = DateTime.UtcNow,
             };
 
-            var query = @"
-INSERT INTO """ + _options.SchemaName + @""".""server"" (""id"", ""data"", ""lastheartbeat"")
+            const string query = @"
+INSERT INTO ""server"" (""id"", ""data"", ""lastheartbeat"")
 VALUES (@id, @data, NOW() AT TIME ZONE 'UTC')
 ON CONFLICT (""id"")
 DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
@@ -324,25 +322,23 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 
         public override void RemoveServer(string serverId)
         {
-            if (serverId == null) throw new ArgumentNullException(nameof(serverId));
-
+            Guard.ThrowIfNull(serverId, nameof(serverId));
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                connectionHolder.Connection.Execute(
-                    $@"DELETE FROM ""{_options.SchemaName}"".""server"" WHERE ""id"" = @id;",
-                    new { id = serverId });
+                connectionHolder.Connection.Execute(@"DELETE FROM ""server"" WHERE ""id"" = @id;", new { id = serverId });
             }
         }
 
         public override void Heartbeat(string serverId)
         {
-            if (serverId == null) throw new ArgumentNullException(nameof(serverId));
+            Guard.ThrowIfNull(serverId, nameof(serverId));
 
-            var query =
-                $@"UPDATE ""{_options.SchemaName}"".""server"" 
-				SET ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC' 
-				WHERE ""id"" = @id;";
+            const string query = @"
+UPDATE ""server"" 
+SET ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC' 
+WHERE ""id"" = @id;";
+
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 connectionHolder.Connection.Execute(query, new { id = serverId });
@@ -351,28 +347,20 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 
         public override int RemoveTimedOutServers(TimeSpan timeOut)
         {
-            if (timeOut.Duration() != timeOut)
-            {
-                throw new ArgumentException("The `timeOut` value must be positive.", nameof(timeOut));
-            }
+            Guard.ThrowIfValueIsNotPositive(timeOut, nameof(timeOut));
 
-            var query =
-                $@"DELETE FROM ""{_options.SchemaName}"".""server"" 
-				WHERE ""lastheartbeat"" < (NOW() AT TIME ZONE 'UTC' - INTERVAL '{
-                        (
-                            long)timeOut.TotalMilliseconds
-                    } MILLISECONDS');";
+            const string query = @"DELETE FROM ""server"" WHERE ""lastheartbeat"" < (NOW() AT TIME ZONE 'UTC' - @timeout);";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                return connectionHolder.Connection.Execute(query);
+                return connectionHolder.Connection.Execute(query, new { timeout = timeOut });
             }
         }
 
         public override long GetSetCount(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            Guard.ThrowIfNull(key, nameof(key));
 
-            var query = $@"select count(""key"") from ""{_options.SchemaName}"".""set"" where ""key"" = @key";
+            const string query = @"SELECT COUNT(""key"") FROM ""set"" WHERE ""key"" = @key";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -382,10 +370,9 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 
         public override List<string> GetAllItemsFromList(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            Guard.ThrowIfNull(key, nameof(key));
 
-            var query =
-                $@"select ""value"" from ""{_options.SchemaName}"".""list"" where ""key"" = @key order by ""id"" desc";
+            const string query = @"select ""value"" from ""list"" where ""key"" = @key order by ""id"" desc";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -395,12 +382,9 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 
         public override long GetCounter(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            Guard.ThrowIfNull(key, nameof(key));
 
-            var query =
-                $@"select sum(s.""Value"") from (select sum(""value"") as ""Value"" from ""{
-                        _options.SchemaName
-                    }"".""counter"" where ""key"" = @key) s";
+            const string query = @"select sum(s.""Value"") from (select sum(""value"") as ""Value"" from ""counter"" where ""key"" = @key) s";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -410,9 +394,9 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 
         public override long GetListCount(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            Guard.ThrowIfNull(key, nameof(key));
 
-            var query = $@"select count(""id"") from ""{_options.SchemaName}"".""list"" where ""key"" = @key";
+            const string query = @"select count(""id"") from ""list"" where ""key"" = @key";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -424,7 +408,7 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            var query = $@"select min(""expireat"") from ""{_options.SchemaName}"".""list"" where ""key"" = @key";
+            const string query = @"select min(""expireat"") from ""list"" where ""key"" = @key";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 var result = connectionHolder.Connection.Query<DateTime?>(query, new { key }).Single();
@@ -438,11 +422,12 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            var query = $@"select ""value"" from (
-					select ""value"", row_number() over (order by ""id"" desc) as row_num 
-					from ""{_options.SchemaName}"".""list""
-					where ""key"" = @key 
-				) as s where s.row_num between @startingFrom and @endingAt";
+            const string query = @"
+select ""value"" from (
+    select ""value"", row_number() over (order by ""id"" desc) as row_num 
+    from ""list""
+    where ""key"" = @key ) as s
+where s.row_num between @startingFrom and @endingAt";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -454,9 +439,9 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 
         public override long GetHashCount(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            Guard.ThrowIfNull(key, nameof(key));
 
-            var query = $@"select count(""id"") from ""{_options.SchemaName}"".""hash"" where ""key"" = @key";
+            const string query = @"select count(""id"") from ""hash"" where ""key"" = @key";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -466,9 +451,9 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 
         public override TimeSpan GetHashTtl(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            Guard.ThrowIfNull(key, nameof(key));
 
-            var query = $@"select min(""expireat"") from ""{_options.SchemaName}"".""hash"" where ""key"" = @key";
+            const string query = @"select min(""expireat"") from ""hash"" where ""key"" = @key";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -483,11 +468,13 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            var query = $@"select ""value"" from (
-					select ""value"", row_number() over (order by ""id"" ASC) as row_num 
-					from ""{_options.SchemaName}"".""set""
-					where ""key"" = @key 
-				) as s where s.row_num between @startingFrom and @endingAt";
+            const string query = @"
+select ""value"" from (
+    select ""value"", row_number() over (order by ""id"" ASC) as row_num 
+    from ""set""
+    where ""key"" = @key 
+    ) as s
+where s.row_num between @startingFrom and @endingAt";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -501,7 +488,7 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            var query = $@"SELECT MIN(expireat) FROM ""{_options.SchemaName}"".set WHERE key = @key";
+            const string query = @"SELECT MIN(expireat) FROM set WHERE key = @key";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -517,11 +504,7 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
             Guard.ThrowIfNull(key, nameof(key));
             Guard.ThrowIfNull(name, nameof(name));
 
-            var query =
-                $@"select ""value"" from ""{
-                        _options.SchemaName
-                    }"".""hash"" where ""key"" = @key and ""field"" = @field";
-
+            const string query = @"select ""value"" from ""hash"" where ""key"" = @key and ""field"" = @field";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
