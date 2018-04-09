@@ -79,6 +79,7 @@ WHERE id IN (
                 } while (removedCount != 0);
             }
             cancellationToken.WaitHandle.WaitOne(_checkInterval);
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 }

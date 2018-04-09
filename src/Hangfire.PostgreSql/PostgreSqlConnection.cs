@@ -34,7 +34,7 @@ namespace Hangfire.PostgreSql
         }
 
         public override IWriteOnlyTransaction CreateWriteTransaction()
-            => new PostgreSqlWriteOnlyTransaction(_connectionProvider, _queue, _options);
+            => new PostgreSqlWriteOnlyTransaction(_connectionProvider, _queue);
 
         public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
             => new PostgreSqlDistributedLock(
@@ -260,16 +260,13 @@ DO UPDATE SET ""field"" = @field
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
-            using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.RepeatableRead))
             {
                 foreach (var keyValuePair in keyValuePairs)
                 {
-                    transaction.Connection.Execute(
+                    connectionHolder.Connection.Execute(
                         query,
-                        new { key = key, field = keyValuePair.Key, value = keyValuePair.Value },
-                        transaction);
+                        new { key = key, field = keyValuePair.Key, value = keyValuePair.Value });
                 }
-                transaction.Commit();
             }
         }
 

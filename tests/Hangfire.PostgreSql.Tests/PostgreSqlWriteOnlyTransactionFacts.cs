@@ -15,41 +15,26 @@ namespace Hangfire.PostgreSql.Tests
     public class PostgreSqlWriteOnlyTransactionFacts
     {
         private readonly Mock<IPersistentJobQueue> _queue;
-        private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlWriteOnlyTransactionFacts()
         {
             _queue = new Mock<IPersistentJobQueue>();
-            _options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_IfConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(null, _queue.Object, _options));
+                () => new PostgreSqlWriteOnlyTransaction(null, _queue.Object));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
-
-        [Fact]
-        public void Ctor_ThrowsAnException_IfOptionsIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), _queue.Object, null));
-
-            Assert.Equal("options", exception.ParamName);
-        }
-
 
         [Fact, CleanDatabase]
         public void Ctor_ThrowsAnException_IfQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), null, _options));
+                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), null));
 
             Assert.Equal("queue", exception.ParamName);
         }
@@ -1002,7 +987,7 @@ returning ""id""";
 
         private void Commit(IPostgreSqlConnectionProvider provider, Action<PostgreSqlWriteOnlyTransaction> action)
         {
-            using (var transaction = new PostgreSqlWriteOnlyTransaction(provider, _queue.Object, _options))
+            using (var transaction = new PostgreSqlWriteOnlyTransaction(provider, _queue.Object))
             {
                 action(transaction);
                 transaction.Commit();
