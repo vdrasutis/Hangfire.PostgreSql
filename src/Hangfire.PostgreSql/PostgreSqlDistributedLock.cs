@@ -48,18 +48,16 @@ namespace Hangfire.PostgreSql
                         int rowsAffected;
                         using (var transaction = connection.BeginTransaction(IsolationLevel.RepeatableRead))
                         {
-                            var sql = $@"
-INSERT INTO ""{_options.SchemaName}"".lock(resource, acquired) 
-SELECT @resource, current_timestamp at time zone 'UTC'
-WHERE NOT EXISTS (
-    SELECT 1 FROM ""{_options.SchemaName}"".lock
-    WHERE resource = @resource
-);";
+                            const string query = @"
+INSERT INTO lock(resource, acquired) 
+VALUES (@resource, current_timestamp at time zone 'UTC')
+ON CONFLICT (resource) DO NOTHING
+;";
                             var parameters = new
                             {
                                 resource = _resource
                             };
-                            rowsAffected = connection.Execute(sql, parameters, transaction);
+                            rowsAffected = connection.Execute(query, parameters, transaction);
                             transaction.Commit();
                         }
                         if (rowsAffected > 0) return;
@@ -109,8 +107,8 @@ WHERE NOT EXISTS (
             {
                 using (var transaction = connection.BeginTransaction(IsolationLevel.RepeatableRead))
                 {
-                    var query = $@"
-DELETE FROM ""{_options.SchemaName}"".lock
+                    const string query = @"
+DELETE FROM lock
 WHERE resource = @resource
 AND acquired < current_timestamp at time zone 'UTC' - @timeout";
 
@@ -138,7 +136,7 @@ AND acquired < current_timestamp at time zone 'UTC' - @timeout";
                 _completed = true;
 
                 var query = $@"
-DELETE FROM ""{_options.SchemaName}"".lock 
+DELETE FROM lock 
 WHERE ""resource"" = @resource;
 ";
                 int rowsAffected = connectionHolder.Connection.Execute(query, new { resource = _resource });
