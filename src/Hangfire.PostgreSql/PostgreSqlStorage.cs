@@ -75,6 +75,7 @@ namespace Hangfire.PostgreSql
 #pragma warning restore 618
             {
                 new ExpirationManager(_connectionProvider),
+                new ExpiredLocksManager(_connectionProvider, _options), 
                 new CountersAggregationManager(_connectionProvider, _options)
             };
 

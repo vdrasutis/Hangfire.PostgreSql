@@ -1,9 +1,7 @@
 using System;
-using System.Data;
 using System.Diagnostics;
 using System.Threading;
 using Dapper;
-using Npgsql;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
@@ -36,40 +34,23 @@ namespace Hangfire.PostgreSql
         private void Initialize()
         {
             var lockAcquiringWatch = Stopwatch.StartNew();
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            var tryAcquireLock = true;
+            while (tryAcquireLock)
             {
-                var connection = connectionHolder.Connection;
-                bool tryAcquireLock = true;
-                while (tryAcquireLock)
+                using (var connectionHolder = _connectionProvider.AcquireConnection())
                 {
-                    TryRemoveTimeoutedLock(connection);
-                    try
-                    {
-                        int rowsAffected;
-                        using (var transaction = connection.BeginTransaction(IsolationLevel.RepeatableRead))
-                        {
-                            const string query = @"
+                    const string query = @"
 INSERT INTO lock(resource, acquired) 
 VALUES (@resource, current_timestamp at time zone 'UTC')
 ON CONFLICT (resource) DO NOTHING
 ;";
-                            var parameters = new
-                            {
-                                resource = _resource
-                            };
-                            rowsAffected = connection.Execute(query, parameters, transaction);
-                            transaction.Commit();
-                        }
-                        if (rowsAffected > 0) return;
-                    }
-                    catch (Exception e)
-                    {
-                        throw new PostgreSqlDistributedLockException(
-                            $"Could not place a lock on the resource \'{_resource}\'. See inner exception", e);
-                    }
+                    var parameters = new { resource = _resource };
+                    var rowsAffected = connectionHolder.Connection.Execute(query, parameters);
 
-                    tryAcquireLock = CheckAndWaitForNextTry(lockAcquiringWatch.ElapsedMilliseconds);
+                    if (rowsAffected > 0) return;
                 }
+
+                tryAcquireLock = CheckAndWaitForNextTry(lockAcquiringWatch.ElapsedMilliseconds);
             }
 
             throw new PostgreSqlDistributedLockException(
@@ -101,32 +82,6 @@ ON CONFLICT (resource) DO NOTHING
             return tryAcquireLock;
         }
 
-        private void TryRemoveTimeoutedLock(NpgsqlConnection connection)
-        {
-            try
-            {
-                using (var transaction = connection.BeginTransaction(IsolationLevel.RepeatableRead))
-                {
-                    const string query = @"
-DELETE FROM lock
-WHERE resource = @resource
-AND acquired < current_timestamp at time zone 'UTC' - @timeout";
-
-                    var parameters = new
-                    {
-                        resource = _resource,
-                        timeout = _options.DistributedLockTimeout
-                    };
-                    connection.Execute(query, parameters, transaction);
-                    transaction.Commit();
-                }
-            }
-            catch (Exception e)
-            {
-                throw new PostgreSqlDistributedLockException(
-                    $"Could not remove timeouted lock on the resource \'{_resource}\'. See inner exception", e);
-            }
-        }
 
         public void Dispose()
         {
@@ -135,7 +90,7 @@ AND acquired < current_timestamp at time zone 'UTC' - @timeout";
                 if (_completed) return;
                 _completed = true;
 
-                var query = $@"
+                const string query = @"
 DELETE FROM lock 
 WHERE ""resource"" = @resource;
 ";
