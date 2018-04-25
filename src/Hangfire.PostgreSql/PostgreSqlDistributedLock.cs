@@ -11,22 +11,18 @@ namespace Hangfire.PostgreSql
         private readonly string _resource;
         private readonly TimeSpan _timeout;
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
-        private readonly PostgreSqlStorageOptions _options;
         private bool _completed;
 
         public PostgreSqlDistributedLock(string resource,
             TimeSpan timeout,
-            IPostgreSqlConnectionProvider connectionProvider,
-            PostgreSqlStorageOptions options)
+            IPostgreSqlConnectionProvider connectionProvider)
         {
             Guard.ThrowIfNullOrEmpty(resource, nameof(resource));
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
-            Guard.ThrowIfNull(options, nameof(options));
 
             _resource = resource;
             _timeout = timeout;
             _connectionProvider = connectionProvider;
-            _options = options;
 
             Initialize();
         }
@@ -82,7 +78,6 @@ ON CONFLICT (resource) DO NOTHING
             return tryAcquireLock;
         }
 
-
         public void Dispose()
         {
             using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -92,9 +87,9 @@ ON CONFLICT (resource) DO NOTHING
 
                 const string query = @"
 DELETE FROM lock 
-WHERE ""resource"" = @resource;
+WHERE resource = @resource;
 ";
-                int rowsAffected = connectionHolder.Connection.Execute(query, new { resource = _resource });
+                var rowsAffected = connectionHolder.Connection.Execute(query, new { resource = _resource });
                 if (rowsAffected <= 0)
                 {
                     throw new PostgreSqlDistributedLockException(

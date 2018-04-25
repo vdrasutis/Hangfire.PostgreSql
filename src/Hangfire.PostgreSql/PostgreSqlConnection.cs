@@ -40,8 +40,7 @@ namespace Hangfire.PostgreSql
             => new PostgreSqlDistributedLock(
                 "hangfire:" + resource,
                 timeout,
-                _connectionProvider,
-                _options);
+                _connectionProvider);
 
         public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
         {
