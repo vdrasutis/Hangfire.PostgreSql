@@ -127,7 +127,7 @@ VALUES (@jobId, @name, @reason, @createdAt, @data);
         {
             const string sql = @"
 INSERT INTO ""counter""(""key"", ""value"", ""expireat"") 
-VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + @expireIn";
+VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + @expireIn)";
 
             QueueCommand((con, trx) => con.Execute(
                 sql,
@@ -144,13 +144,13 @@ VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + @expireIn";
 
         public override void DecrementCounter(string key, TimeSpan expireIn)
         {
-            var sql = $@"
+            const string query = @"
 INSERT INTO ""counter""(""key"", ""value"", ""expireat"") 
-VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + INTERVAL '{(long)expireIn.TotalSeconds} SECONDS');";
+VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + @expireIn);";
 
-            QueueCommand((con, trx) => con.Execute(sql
-                ,
-                new { key, value = -1 }, trx));
+            QueueCommand((con, trx) => con.Execute(query,
+                new { key, value = -1, expireIn = expireIn },
+                trx));
         }
 
         public override void AddToSet(string key, string value)
