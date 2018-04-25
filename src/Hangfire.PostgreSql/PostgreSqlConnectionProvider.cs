@@ -14,7 +14,7 @@ namespace Hangfire.PostgreSql
         private readonly string _connectionString;
         private readonly PostgreSqlStorageOptions _options;
         private int _activeConnections;
-        private readonly ConcurrentQueue<NpgsqlConnection> _connectionQueue;
+        private readonly ConcurrentBag<NpgsqlConnection> _connectionQueue;
         private readonly ConcurrentBag<NpgsqlConnection> _connectionPool;
 
         public PostgreSqlConnectionProvider(string connectionString, PostgreSqlStorageOptions options)
@@ -24,7 +24,7 @@ namespace Hangfire.PostgreSql
 
             _connectionString = connectionString;
             _options = options;
-            _connectionQueue = new ConcurrentQueue<NpgsqlConnection>();
+            _connectionQueue = new ConcurrentBag<NpgsqlConnection>();
             _connectionPool = new ConcurrentBag<NpgsqlConnection>();
         }
 
@@ -39,13 +39,13 @@ namespace Hangfire.PostgreSql
         public void ReleaseConnection(PostgreSqlConnectionHolder connectionHolder)
         {
             if (connectionHolder.Disposed) return;
-            _connectionQueue.Enqueue(connectionHolder.Connection);
+            _connectionQueue.Add(connectionHolder.Connection);
         }
 
         private NpgsqlConnection GetFreeConnection()
         {
             NpgsqlConnection connection;
-            while (!_connectionQueue.TryDequeue(out connection))
+            while (!_connectionQueue.TryTake(out connection))
             {
                 connection = CreateConnectionIfNeeded();
                 if (connection != null) return connection;
