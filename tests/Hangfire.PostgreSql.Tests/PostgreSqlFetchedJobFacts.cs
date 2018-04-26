@@ -16,40 +16,26 @@ namespace Hangfire.PostgreSql.Tests
         private const string Queue = "queue";
 
         private readonly Mock<IPostgreSqlConnectionProvider> _connection;
-        private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlFetchedJobFacts()
         {
             _connection = new Mock<IPostgreSqlConnectionProvider>();
-            _options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlFetchedJob(null, _options, 1, JobId, Queue));
+                () => new PostgreSqlFetchedJob(null, 1, JobId, Queue));
 
             Assert.Equal("connectionProvider", exception.ParamName);
-        }
-
-        [Fact]
-        public void Ctor_ThrowsAnException_WhenOptionsIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlFetchedJob(_connection.Object, null, 1, JobId, Queue));
-
-            Assert.Equal("options", exception.ParamName);
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenJobIdIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlFetchedJob(_connection.Object, _options, 1, null, Queue));
+                () => new PostgreSqlFetchedJob(_connection.Object, 1, null, Queue));
 
             Assert.Equal("jobId", exception.ParamName);
         }
@@ -58,7 +44,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlFetchedJob(_connection.Object, _options, 1, JobId, null));
+                () => new PostgreSqlFetchedJob(_connection.Object, 1, JobId, null));
 
             Assert.Equal("queue", exception.ParamName);
         }
@@ -66,7 +52,7 @@ namespace Hangfire.PostgreSql.Tests
         [Fact]
         public void Ctor_CorrectlySets_AllInstanceProperties()
         {
-            var fetchedJob = new PostgreSqlFetchedJob(_connection.Object, _options, 1, JobId, Queue);
+            var fetchedJob = new PostgreSqlFetchedJob(_connection.Object, 1, JobId, Queue);
 
             Assert.Equal(1, fetchedJob.Id);
             Assert.Equal(JobId, fetchedJob.JobId);
@@ -80,7 +66,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 // Arrange
                 var id = CreateJobQueueRecord(connection, "1", "default");
-                var processingJob = new PostgreSqlFetchedJob(provider, _options, id, "1", "default");
+                var processingJob = new PostgreSqlFetchedJob(provider, id, "1", "default");
 
                 // Act
                 processingJob.RemoveFromQueue();
@@ -102,7 +88,7 @@ namespace Hangfire.PostgreSql.Tests
                 CreateJobQueueRecord(connection, "1", "critical");
                 CreateJobQueueRecord(connection, "2", "default");
 
-                var fetchedJob = new PostgreSqlFetchedJob(provider, _options, 999, "1", "default");
+                var fetchedJob = new PostgreSqlFetchedJob(provider, 999, "1", "default");
 
                 // Act
                 fetchedJob.RemoveFromQueue();
@@ -121,7 +107,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 // Arrange
                 var id = CreateJobQueueRecord(connection, "1", "default");
-                var processingJob = new PostgreSqlFetchedJob(provider, _options, id, "1", "default");
+                var processingJob = new PostgreSqlFetchedJob(provider, id, "1", "default");
 
                 // Act
                 processingJob.Requeue();
@@ -139,7 +125,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 // Arrange
                 var id = CreateJobQueueRecord(connection, "1", "default");
-                var processingJob = new PostgreSqlFetchedJob(provider, _options, id, "1", "default");
+                var processingJob = new PostgreSqlFetchedJob(provider, id, "1", "default");
 
                 // Act
                 processingJob.Dispose();

@@ -29,21 +29,26 @@ namespace Hangfire.PostgreSql
 
             long timeoutSeconds = (long)_options.InvisibilityTimeout.Negate().TotalSeconds;
 
+            var queuesList = string.Join(",", queues.Select(x => string.Concat("'", x, "'")));
+            var queuesOrder = string.Join(",", queues.Select(x => $@"queue='{x}'"));
+
             var fetchJobSqlTemplate = $@"
-UPDATE ""{_options.SchemaName}"".jobqueue AS jobqueue
+BEGIN;
+UPDATE jobqueue AS jobqueue
 SET fetchedat = NOW() AT TIME ZONE 'UTC'
 WHERE jobqueue.id = (
     SELECT id
-    FROM ""{_options.SchemaName}"".jobqueue
-    WHERE queue IN ({string.Join(",", queues.Select(x => string.Concat("'", x, "'")))})
+    FROM jobqueue
+    WHERE queue IN ({queuesList})
     AND (
        fetchedat IS NULL OR
        fetchedat < NOW() AT TIME ZONE 'UTC' + INTERVAL '{timeoutSeconds} SECONDS'
        )
-    ORDER BY ({string.Join(",", queues.Select(x => $@"queue='{x}'"))}) DESC
+    ORDER BY ({queuesOrder}) DESC
     LIMIT 1
     FOR UPDATE SKIP LOCKED)
 RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS FetchedAt;
+COMMIT;
 ";
 
             FetchedJob fetchedJob;
@@ -68,7 +73,6 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
 
             return new PostgreSqlFetchedJob(
                 _connectionProvider,
-                _options,
                 fetchedJob.Id,
                 fetchedJob.JobId.ToString(CultureInfo.InvariantCulture),
                 fetchedJob.Queue);
@@ -78,8 +82,8 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
         {
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                string query = $@"
-INSERT INTO ""{_options.SchemaName}"".jobqueue (jobid, queue) 
+                const string query = @"
+INSERT INTO jobqueue (jobid, queue) 
 VALUES (@jobId, @queue);
 ";
                 var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };

@@ -21,6 +21,8 @@ namespace Hangfire.PostgreSql
 
         public void Execute(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 const string query = @"
