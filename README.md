@@ -39,7 +39,9 @@ GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.
 
 Backward compatibility with original project
 -----------------
+* Minimum required PostgreSQL version is 9.6
 * Number of connections are limited now using ```PostgreSqlStorageOptions.ConnectionsCount``` setting;
+* ```PostgreSqlStorageOptions.SchemaName``` is deprecated. Consider using ```SearchPath``` in your connection string.
 * Connection string must be passed directly to constructor or bootstrapper method (it is no longer available to pass connection string name stored in ```app.config```;
 * Constructor with existing ```NpgsqlConnection``` is no longer available;
 * ```NpgsqlConnection``` pooling is not used now (used own pooling mechanism);
