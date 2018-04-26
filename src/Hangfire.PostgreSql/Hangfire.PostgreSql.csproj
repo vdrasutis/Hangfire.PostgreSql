@@ -13,9 +13,9 @@
     <PackageReleaseNotes>https://github.com/ahydrax/Hangfire.PostgreSql/releases</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/ahydrax/Hangfire.PostgreSql</PackageProjectUrl>
     <PackageLicenseUrl>https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/LICENSE.md</PackageLicenseUrl>
-    <Version>1.5.4.4</Version>
-    <FileVersion>1.5.4.4</FileVersion>
-    <AssemblyVersion>1.5.4.4</AssemblyVersion>
+    <Version>1.6-alpha</Version>
+    <FileVersion>1.6-alpha</FileVersion>
+    <AssemblyVersion>1.6-alpha</AssemblyVersion>
     <NeutralLanguage />
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Company>Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Company>
@@ -32,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="Schema\Instal.v10.sql" />
+    <None Remove="Schema\Install.v10.sql" />
     <None Remove="Schema\Install.v3.sql" />
     <None Remove="Schema\Install.v4.sql" />
     <None Remove="Schema\Install.v5.sql" />
@@ -41,7 +41,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Schema\Instal.v10.sql" />
+    <EmbeddedResource Include="Schema\Install.v10.sql" />
     <EmbeddedResource Include="Schema\Install.v9.sql" />
     <EmbeddedResource Include="Schema\Install.v3.sql" />
     <EmbeddedResource Include="Schema\Install.v4.sql" />

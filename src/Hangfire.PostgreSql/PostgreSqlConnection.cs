@@ -331,9 +331,9 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
             Guard.ThrowIfNull(serverId, nameof(serverId));
 
             const string query = @"
-UPDATE ""server"" 
-SET ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC' 
-WHERE ""id"" = @id;";
+UPDATE server 
+SET lastheartbeat = NOW() AT TIME ZONE 'UTC' 
+WHERE id = @id;";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -345,7 +345,7 @@ WHERE ""id"" = @id;";
         {
             Guard.ThrowIfValueIsNotPositive(timeOut, nameof(timeOut));
 
-            const string query = @"DELETE FROM ""server"" WHERE ""lastheartbeat"" < (NOW() AT TIME ZONE 'UTC' - @timeout);";
+            const string query = @"DELETE FROM server WHERE lastheartbeat < (NOW() AT TIME ZONE 'UTC' - @timeout);";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 return connectionHolder.Connection.Execute(query, new { timeout = timeOut });
@@ -356,7 +356,7 @@ WHERE ""id"" = @id;";
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"SELECT COUNT(""key"") FROM ""set"" WHERE ""key"" = @key";
+            const string query = @"SELECT COUNT(key) FROM set WHERE key = @key";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {

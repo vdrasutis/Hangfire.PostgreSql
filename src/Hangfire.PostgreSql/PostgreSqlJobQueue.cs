@@ -84,7 +84,7 @@ COMMIT;
             {
                 const string query = @"
 INSERT INTO jobqueue (jobid, queue) 
-VALUES (@jobId, @queue);
+VALUES (@jobId, @queue)
 ";
                 var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };
                 connectionHolder.Connection.Execute(query, parameters);
