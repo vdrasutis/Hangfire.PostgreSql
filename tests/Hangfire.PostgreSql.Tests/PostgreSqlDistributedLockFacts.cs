@@ -54,25 +54,6 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact, CleanDatabase]
-        public void Ctor_AcquiresExclusiveApplicationLock_WhenDeadlockIsOccured()
-        {
-            UseConnection((provider, connection) =>
-            {
-                // Arrange
-                var timeout = TimeSpan.FromSeconds(7);
-                var resourceName = "hello";
-                connection.Execute(
-                    $@"INSERT INTO ""{GetSchemaName()}"".""lock"" VALUES ('{resourceName}', 0, '{DateTime.UtcNow}')");
-
-                // Act
-                var distributedLock = new PostgreSqlDistributedLock(resourceName, timeout, provider);
-
-                // Assert
-                Assert.True(distributedLock != null);
-            });
-        }
-
-        [Fact, CleanDatabase]
         public void Ctor_ThrowsAnException_IfLockCanNotBeGranted()
         {
             var releaseLock = new ManualResetEventSlim(false);
