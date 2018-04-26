@@ -31,6 +31,7 @@ namespace Hangfire.PostgreSql
         {
             var lockAcquiringWatch = Stopwatch.StartNew();
             var tryAcquireLock = true;
+            var sleepTime = 100;
             while (tryAcquireLock)
             {
                 using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -46,14 +47,14 @@ ON CONFLICT (resource) DO NOTHING
                     if (rowsAffected > 0) return;
                 }
 
-                tryAcquireLock = CheckAndWaitForNextTry(lockAcquiringWatch.ElapsedMilliseconds);
+                tryAcquireLock = CheckAndWaitForNextTry(lockAcquiringWatch.ElapsedMilliseconds, ref sleepTime);
             }
 
             throw new PostgreSqlDistributedLockException(
                 $"Could not place a lock on the resource \'{_resource}\': Lock timeout.");
         }
 
-        private bool CheckAndWaitForNextTry(long elapsedMilliseconds)
+        private bool CheckAndWaitForNextTry(long elapsedMilliseconds, ref int sleepTime)
         {
             const int maxSleepTimeMilliseconds = 500;
             var tryAcquireLock = true;
@@ -75,6 +76,8 @@ ON CONFLICT (resource) DO NOTHING
                     tryAcquireLock = false;
                 }
             }
+
+            sleepTime = sleepTime >= maxSleepTimeMilliseconds ? sleepTime : sleepTime + 100;
             return tryAcquireLock;
         }
 
