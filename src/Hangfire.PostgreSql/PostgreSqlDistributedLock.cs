@@ -8,8 +8,8 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlDistributedLock : IDisposable
     {
-        private static readonly ThreadLocal<Random> Random = new ThreadLocal<Random>();
-        
+        private static readonly ThreadLocal<Random> Random = new ThreadLocal<Random>(() => new Random());
+
         private readonly string _resource;
         private readonly TimeSpan _timeout;
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
@@ -25,9 +25,6 @@ namespace Hangfire.PostgreSql
             _resource = resource;
             _timeout = timeout;
             _connectionProvider = connectionProvider;
-            
-            if (!Random.IsValueCreated)
-                Random.Value = new Random();
 
             Initialize();
         }
@@ -36,7 +33,7 @@ namespace Hangfire.PostgreSql
         {
             var lockAcquiringWatch = Stopwatch.StartNew();
             var tryAcquireLock = true;
-            var sleepTime = 100;
+            var sleepTime = 50;
             while (tryAcquireLock)
             {
                 using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -61,7 +58,7 @@ ON CONFLICT (resource) DO NOTHING
 
         private bool CheckAndWaitForNextTry(long elapsedMilliseconds, ref int sleepTime)
         {
-            const int maxSleepTimeMilliseconds = 500;
+            var maxSleepTimeMilliseconds = sleepTime * 2;
             var tryAcquireLock = true;
             var timeoutTotalMilliseconds = _timeout.TotalMilliseconds;
             if (elapsedMilliseconds > timeoutTotalMilliseconds)
@@ -82,7 +79,7 @@ ON CONFLICT (resource) DO NOTHING
                 }
             }
 
-            sleepTime = sleepTime >= maxSleepTimeMilliseconds ? sleepTime : sleepTime + Random.Value.Next(50, 100);
+            sleepTime = Random.Value.Next(sleepTime, maxSleepTimeMilliseconds);
             return tryAcquireLock;
         }
 
