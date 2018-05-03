@@ -8,6 +8,8 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlDistributedLock : IDisposable
     {
+        private static readonly ThreadLocal<Random> Random = new ThreadLocal<Random>();
+        
         private readonly string _resource;
         private readonly TimeSpan _timeout;
         private readonly IPostgreSqlConnectionProvider _connectionProvider;
@@ -23,6 +25,9 @@ namespace Hangfire.PostgreSql
             _resource = resource;
             _timeout = timeout;
             _connectionProvider = connectionProvider;
+            
+            if (!Random.IsValueCreated)
+                Random.Value = new Random();
 
             Initialize();
         }
@@ -77,7 +82,7 @@ ON CONFLICT (resource) DO NOTHING
                 }
             }
 
-            sleepTime = sleepTime >= maxSleepTimeMilliseconds ? sleepTime : sleepTime + 100;
+            sleepTime = sleepTime >= maxSleepTimeMilliseconds ? sleepTime : sleepTime + Random.Value.Next(50, 100);
             return tryAcquireLock;
         }
 
