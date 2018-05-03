@@ -31,10 +31,9 @@ namespace Hangfire.PostgreSql
 
         private void Initialize()
         {
-            var lockAcquiringWatch = Stopwatch.StartNew();
-            var tryAcquireLock = true;
             var sleepTime = 50;
-            while (tryAcquireLock)
+            var lockAcquiringWatch = Stopwatch.StartNew();
+            do
             {
                 using (var connectionHolder = _connectionProvider.AcquireConnection())
                 {
@@ -48,39 +47,27 @@ ON CONFLICT (resource) DO NOTHING
 
                     if (rowsAffected > 0) return;
                 }
-
-                tryAcquireLock = CheckAndWaitForNextTry(lockAcquiringWatch.ElapsedMilliseconds, ref sleepTime);
-            }
+            } while (IsNotTimeouted(lockAcquiringWatch.Elapsed, ref sleepTime));
 
             throw new PostgreSqlDistributedLockException(
                 $"Could not place a lock on the resource \'{_resource}\': Lock timeout.");
         }
 
-        private bool CheckAndWaitForNextTry(long elapsedMilliseconds, ref int sleepTime)
+        private bool IsNotTimeouted(TimeSpan elapsed, ref int sleepTime)
         {
-            var maxSleepTimeMilliseconds = sleepTime * 2;
-            var tryAcquireLock = true;
-            var timeoutTotalMilliseconds = _timeout.TotalMilliseconds;
-            if (elapsedMilliseconds > timeoutTotalMilliseconds)
+            if (elapsed > _timeout)
             {
-                tryAcquireLock = false;
+                return false;
             }
             else
             {
-                var sleepDuration = timeoutTotalMilliseconds - elapsedMilliseconds;
-                if (sleepDuration > maxSleepTimeMilliseconds) sleepDuration = maxSleepTimeMilliseconds;
-                if (sleepDuration > 0)
-                {
-                    Thread.Sleep((int)sleepDuration);
-                }
-                else
-                {
-                    tryAcquireLock = false;
-                }
-            }
+                Thread.Sleep(sleepTime);
 
-            sleepTime = Random.Value.Next(sleepTime, maxSleepTimeMilliseconds);
-            return tryAcquireLock;
+                var maxSleepTimeMilliseconds = Math.Min(sleepTime * 2, 2000);
+                sleepTime = Random.Value.Next(sleepTime, maxSleepTimeMilliseconds);
+
+                return true;
+            }
         }
 
         public void Dispose()
