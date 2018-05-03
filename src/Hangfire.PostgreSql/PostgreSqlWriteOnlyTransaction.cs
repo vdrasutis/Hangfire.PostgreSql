@@ -57,32 +57,32 @@ WHERE id = @id;
 
         public override void PersistJob(string jobId)
         {
-            const string sql = @"
+            const string query = @"
 UPDATE job
 SET expireat = NULL 
 WHERE id = @id;
 ";
             var id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture);
             QueueCommand((con, trx) => con.Execute(
-                sql,
+                query,
                 new { id = id }, trx));
         }
 
         public override void SetJobState(string jobId, IState state)
         {
-            var addAndSetStateSql = $@"
+            const string query = @"
 WITH s AS (
-    INSERT INTO ""state"" (""jobid"", ""name"", ""reason"", ""createdat"", ""data"")
-    VALUES (@jobId, @name, @reason, @createdAt, @data) RETURNING ""id""
+    INSERT INTO state (jobid, name, reason, createdat, data)
+    VALUES (@jobId, @name, @reason, @createdAt, @data) RETURNING id
 )
-UPDATE ""job"" j
-SET ""stateid"" = s.""id"", ""statename"" = @name
+UPDATE job j
+SET stateid = s.id, statename = @name
 FROM s
-WHERE j.""id"" = @id;
+WHERE j.id = @id;
 ";
 
             QueueCommand((con, trx) => con.Execute(
-                addAndSetStateSql,
+                query,
                 new
                 {
                     jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture),
@@ -96,13 +96,13 @@ WHERE j.""id"" = @id;
 
         public override void AddJobState(string jobId, IState state)
         {
-            var addStateSql = $@"
-INSERT INTO ""state"" (""jobid"", ""name"", ""reason"", ""createdat"", ""data"")
+            const string query = @"
+INSERT INTO state (jobid, name, reason, createdat, data)
 VALUES (@jobId, @name, @reason, @createdAt, @data);
 ";
 
             QueueCommand((con, trx) => con.Execute(
-                addStateSql,
+                query,
                 new
                 {
                     jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture),
@@ -117,35 +117,35 @@ VALUES (@jobId, @name, @reason, @createdAt, @data);
 
         public override void IncrementCounter(string key)
         {
-            const string sql = @"INSERT INTO ""counter"" (""key"", ""value"") VALUES (@key, @value);";
+            const string query = @"INSERT INTO counter (key, value) VALUES (@key, @value);";
             QueueCommand((con, trx) => con.Execute(
-                sql,
+                query,
                 new { key, value = +1 }, trx));
         }
 
         public override void IncrementCounter(string key, TimeSpan expireIn)
         {
-            const string sql = @"
-INSERT INTO ""counter""(""key"", ""value"", ""expireat"") 
+            const string query = @"
+INSERT INTO counter(key, value, expireat) 
 VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + @expireIn)";
 
             QueueCommand((con, trx) => con.Execute(
-                sql,
+                query,
                 new { key, value = +1, expireIn = expireIn }, trx));
         }
 
         public override void DecrementCounter(string key)
         {
-            var sql = $@"INSERT INTO ""counter"" (""key"", ""value"") VALUES (@key, @value);";
+            const string query = @"INSERT INTO counter (key, value) VALUES (@key, @value);";
             QueueCommand((con, trx) => con.Execute(
-                sql,
+                query,
                 new { key, value = -1 }, trx));
         }
 
         public override void DecrementCounter(string key, TimeSpan expireIn)
         {
             const string query = @"
-INSERT INTO ""counter""(""key"", ""value"", ""expireat"") 
+INSERT INTO counter(key, value, expireat) 
 VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + @expireIn);";
 
             QueueCommand((con, trx) => con.Execute(query,
@@ -161,10 +161,10 @@ VALUES (@key, @value, NOW() AT TIME ZONE 'UTC' + @expireIn);";
         public override void AddToSet(string key, string value, double score)
         {
             const string query = @"
-INSERT INTO ""set"" (""key"", ""value"", ""score"")
+INSERT INTO set (key, value, score)
 VALUES (@key, @value, @score)
-ON CONFLICT (""key"", ""value"")
-DO UPDATE SET ""score"" = @score
+ON CONFLICT (key, value)
+DO UPDATE SET score = @score
 ";
 
             QueueCommand((con, trx) => con.Execute(
@@ -175,9 +175,9 @@ DO UPDATE SET ""score"" = @score
         public override void RemoveFromSet(string key, string value)
         {
             QueueCommand((con, trx) => con.Execute(@"
-DELETE FROM ""set"" 
-WHERE ""key"" = @key 
-AND ""value"" = @value;
+DELETE FROM set 
+WHERE key = @key 
+AND value = @value;
 ",
                 new { key, value }, trx));
         }
@@ -185,7 +185,7 @@ AND ""value"" = @value;
         public override void InsertToList(string key, string value)
         {
             QueueCommand((con, trx) => con.Execute(@"
-INSERT INTO ""list"" (""key"", ""value"") 
+INSERT INTO list (key, value) 
 VALUES (@key, @value);
 ",
                 new { key, value }, trx));
@@ -194,9 +194,9 @@ VALUES (@key, @value);
         public override void RemoveFromList(string key, string value)
         {
             QueueCommand((con, trx) => con.Execute(@"
-DELETE FROM ""list"" 
-WHERE ""key"" = @key 
-AND ""value"" = @value;
+DELETE FROM list 
+WHERE key = @key 
+AND value = @value;
 ",
                 new { key, value }, trx));
         }
@@ -204,13 +204,13 @@ AND ""value"" = @value;
         public override void TrimList(string key, int keepStartingFrom, int keepEndingAt)
         {
             var trimSql = $@"
-DELETE FROM ""list"" AS source
-WHERE ""key"" = @key
-AND ""id"" NOT IN (
-    SELECT ""id"" 
-    FROM ""list"" AS keep
-    WHERE keep.""key"" = source.""key""
-    ORDER BY ""id"" 
+DELETE FROM list AS source
+WHERE key = @key
+AND id NOT IN (
+    SELECT id 
+    FROM list AS keep
+    WHERE keep.key = source.key
+    ORDER BY id 
     OFFSET @start LIMIT @end
 );
 ";
@@ -226,10 +226,10 @@ AND ""id"" NOT IN (
             Guard.ThrowIfNull(keyValuePairs, nameof(keyValuePairs));
 
             const string query = @"
-INSERT INTO ""hash"" (""key"", ""field"", ""value"")
+INSERT INTO hash (key, field, value)
 VALUES (@key, @field, @value)
-ON CONFLICT (""key"", ""field"")
-DO UPDATE SET ""value"" = @value
+ON CONFLICT (key, field)
+DO UPDATE SET value = @value
 ";
 
             foreach (var keyValuePair in keyValuePairs)
@@ -245,7 +245,7 @@ DO UPDATE SET ""value"" = @value
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"DELETE FROM ""hash"" WHERE ""key"" = @key";
+            const string query = @"DELETE FROM hash WHERE key = @key";
             QueueCommand((con, trx) => con.Execute(
                 query,
                 new { key }, trx));
@@ -255,7 +255,7 @@ DO UPDATE SET ""value"" = @value
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"UPDATE ""set"" SET ""expireat"" = @expireAt WHERE ""key"" = @key";
+            const string query = @"UPDATE set SET expireat = @expireAt WHERE key = @key";
 
             QueueCommand((connection, transaction) => connection.Execute(
                 query,
@@ -268,7 +268,7 @@ DO UPDATE SET ""value"" = @value
             Guard.ThrowIfNull(key, nameof(key));
             Guard.ThrowIfValueIsNotPositive(expireIn, nameof(expireIn));
 
-            const string query = @"UPDATE ""list"" SET ""expireat"" = @expireAt WHERE ""key"" = @key";
+            const string query = @"UPDATE list SET expireat = @expireAt WHERE key = @key";
 
             QueueCommand((connection, transaction) => connection.Execute(
                 query,
@@ -281,7 +281,7 @@ DO UPDATE SET ""value"" = @value
             Guard.ThrowIfNull(key, nameof(key));
             Guard.ThrowIfValueIsNotPositive(expireIn, nameof(expireIn));
 
-            const string query = @"UPDATE ""hash"" SET expireat = @expireAt WHERE ""key"" = @key";
+            const string query = @"UPDATE hash SET expireat = @expireAt WHERE key = @key";
 
             QueueCommand((connection, transaction) => connection.Execute(
                 query,
@@ -293,7 +293,7 @@ DO UPDATE SET ""value"" = @value
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"UPDATE ""set"" SET expireat = null WHERE ""key"" = @key";
+            const string query = @"UPDATE set SET expireat = null WHERE key = @key";
 
             QueueCommand((connection, transaction) => connection.Execute(
                 query,
@@ -305,7 +305,7 @@ DO UPDATE SET ""value"" = @value
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"UPDATE ""list"" SET expireat = null WHERE ""key"" = @key";
+            const string query = @"UPDATE list SET expireat = null WHERE key = @key";
 
             QueueCommand((connection, transaction) => connection.Execute(
                 query,
@@ -317,7 +317,7 @@ DO UPDATE SET ""value"" = @value
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"UPDATE ""hash"" SET expireat = null WHERE ""key"" = @key";
+            const string query = @"UPDATE hash SET expireat = null WHERE key = @key";
 
             QueueCommand((connection, transaction) => connection.Execute(
                 query,
@@ -330,7 +330,7 @@ DO UPDATE SET ""value"" = @value
             Guard.ThrowIfNull(key, nameof(key));
             Guard.ThrowIfNull(items, nameof(items));
 
-            const string query = @"INSERT INTO ""set"" (""key"", ""value"", ""score"") VALUES (@key, @value, 0.0)";
+            const string query = @"INSERT INTO set (key, value, score) VALUES (@key, @value, 0.0)";
 
             QueueCommand((connection, transaction) => connection.Execute(
                 query,
@@ -342,10 +342,10 @@ DO UPDATE SET ""value"" = @value
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            var sql = $@"DELETE FROM ""set"" WHERE ""key"" = @key";
+            const string query = @"DELETE FROM set WHERE key = @key";
 
             QueueCommand((connection, transaction) => connection.Execute(
-                sql,
+                query,
                 new { key },
                 transaction));
         }
