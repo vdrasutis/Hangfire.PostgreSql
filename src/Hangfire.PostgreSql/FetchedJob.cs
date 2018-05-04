@@ -4,14 +4,14 @@ using Hangfire.Storage;
 
 namespace Hangfire.PostgreSql
 {
-    internal class Job : IFetchedJob
+    internal class FetchedJob : IFetchedJob
     {
         private readonly IConnectionProvider _connectionProvider;
         private bool _disposed;
         private bool _removedFromQueue;
         private bool _requeued;
 
-        public Job(
+        public FetchedJob(
             IConnectionProvider connectionProvider,
             int id,
             string jobId,

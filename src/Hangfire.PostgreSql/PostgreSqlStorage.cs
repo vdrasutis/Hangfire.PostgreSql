@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Hangfire.Annotations;
 using Hangfire.Logging;
 using Hangfire.PostgreSql.Connectivity;
+using Hangfire.PostgreSql.Maintenance;
 using Hangfire.Server;
 using Hangfire.Storage;
 using Npgsql;
@@ -104,7 +105,7 @@ namespace Hangfire.PostgreSql
 
         public void Dispose()
         {
-            _connectionProvider.Dispose();
+            //_connectionProvider.Dispose();
         }
     }
 }

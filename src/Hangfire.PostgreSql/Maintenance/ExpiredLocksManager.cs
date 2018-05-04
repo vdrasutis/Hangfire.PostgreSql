@@ -4,7 +4,7 @@ using Dapper;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
 
-namespace Hangfire.PostgreSql
+namespace Hangfire.PostgreSql.Maintenance
 {
 #pragma warning disable 618 // TODO: remove IServerComponent when migrating to Hangfire 2
     public class ExpiredLocksManager : IBackgroundProcess, IServerComponent

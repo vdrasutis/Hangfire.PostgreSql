@@ -35,7 +35,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_IfQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new WriteOnlyTransaction(ConnectionUtils.CreateConnection(), null));
+                () => new WriteOnlyTransaction(ConnectionUtils.GetConnectionProvider(), null));
 
             Assert.Equal("queue", exception.ParamName);
         }
@@ -979,7 +979,7 @@ returning ""id""";
 
         private void UseConnection(Action<IConnectionProvider, NpgsqlConnection> action)
         {
-            var provider = ConnectionUtils.CreateConnection();
+            var provider = ConnectionUtils.GetConnectionProvider();
             using (var connection = provider.AcquireConnection())
             {
                 action(provider, connection.Connection);

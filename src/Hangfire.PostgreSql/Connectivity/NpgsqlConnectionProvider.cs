@@ -14,6 +14,7 @@ namespace Hangfire.PostgreSql.Connectivity
         public ConnectionHolder AcquireConnection()
         {
             var connection = new NpgsqlConnection(_connectionString);
+            connection.Open();
             return new ConnectionHolder(connection, holder => holder.Connection.Dispose());
         }
 

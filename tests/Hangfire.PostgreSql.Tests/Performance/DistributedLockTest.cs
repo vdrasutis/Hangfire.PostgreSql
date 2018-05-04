@@ -11,7 +11,7 @@ namespace Hangfire.PostgreSql.Tests.Performance
         [Fact(Skip = "Use only for profiling/benchmarking. Not stable"), CleanDatabase]
         public void Perf_AcquiringLock()
         {
-            var connectionProvider = ConnectionUtils.CreateConnection();
+            var connectionProvider = ConnectionUtils.GetConnectionProvider();
 
             var threads = Enumerable.Range(1, 100).AsParallel()
                 .WithDegreeOfParallelism(100)

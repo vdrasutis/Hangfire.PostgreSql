@@ -16,37 +16,18 @@ namespace Hangfire.PostgreSql.Connectivity
         private readonly ConcurrentBag<NpgsqlConnection> _connectionPool;
 
         private int _activeConnections;
-        private readonly int _minConnections;
         private readonly int _maxConnections;
 
         public DefaultConnectionProvider(string connectionString)
         {
             Guard.ThrowIfConnectionStringIsInvalid(connectionString);
-            
+
             _connectionString = connectionString;
             _connectionQueue = new ConcurrentBag<NpgsqlConnection>();
             _connectionPool = new ConcurrentBag<NpgsqlConnection>();
 
             var connectionStringBuilder = new NpgsqlConnectionStringBuilder(_connectionString);
-            _minConnections = connectionStringBuilder.MinPoolSize;
             _maxConnections = connectionStringBuilder.MaxPoolSize;
-
-            if (_minConnections != 0)
-            {
-                PreInitializePool();
-            }
-        }
-
-        private void PreInitializePool()
-        {
-            // simple and stupid impl now. TODO: rework
-            for (var i = 0; i < _minConnections; i++)
-            {
-                using (var connection = AcquireConnection())
-                {
-                    // do nothing
-                }
-            }
         }
 
         internal int ActiveConnections => _activeConnections;

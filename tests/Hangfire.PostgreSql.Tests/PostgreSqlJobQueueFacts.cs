@@ -122,7 +122,7 @@ values (@jobId, @queue) returning ""id""";
                 var queue = CreateJobQueue();
 
                 // Act
-                var payload = (Job)queue.Dequeue(
+                var payload = (FetchedJob)queue.Dequeue(
                     DefaultQueues,
                     CreateTimingOutCancellationToken());
 
@@ -295,14 +295,14 @@ select i.""id"", @queue from i;
 
                 var queue = CreateJobQueue();
 
-                var queueFirst = (Job)queue.Dequeue(
+                var queueFirst = (FetchedJob)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
                 Assert.NotNull(queueFirst.JobId);
                 Assert.Contains(queueFirst.Queue, queueNames);
 
-                var queueLast = (Job)queue.Dequeue(
+                var queueLast = (FetchedJob)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
@@ -335,13 +335,13 @@ select i.""id"", @queue from i;
 
         private static JobQueue CreateJobQueue()
         {
-            var provider = ConnectionUtils.CreateConnection();
+            var provider = ConnectionUtils.GetConnectionProvider();
             return new JobQueue(provider, new PostgreSqlStorageOptions());
         }
 
         private static void UseConnection(Action<NpgsqlConnection> action)
         {
-            var provider = ConnectionUtils.CreateConnection();
+            var provider = ConnectionUtils.GetConnectionProvider();
             using (var connection = provider.AcquireConnection())
             {
                 action(connection.Connection);

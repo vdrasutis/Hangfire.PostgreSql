@@ -40,27 +40,18 @@ namespace Hangfire.PostgreSql.Tests.Utils
 
         private static void RecreateSchemaAndInstallObjects()
         {
-            using (var connection = ConnectionUtils.CreateNpgConnection())
+            var provider = ConnectionUtils.GetConnectionProvider();
+            using (var connectionHolder = provider.AcquireConnection())
             {
-                bool databaseExists = connection.Query<bool?>(
-                                          @"select true :: boolean from pg_database where datname = @databaseName;",
-                                          new
-                                          {
-                                              databaseName = ConnectionUtils.GetDatabaseName()
-                                          }
-                                      ).SingleOrDefault() ?? false;
+                var connection = connectionHolder.Connection;
+                var databaseName = ConnectionUtils.GetDatabaseName();
+                var databaseExists = connection.ExecuteScalar<int>(@"select COUNT(*) from pg_database where datname = @databaseName;",
+                                         new { databaseName = databaseName }
+                                     ) > 0;
 
                 if (!databaseExists)
                 {
-                    connection.Execute($@"CREATE DATABASE ""{ConnectionUtils.GetDatabaseName()}""");
-                }
-            }
-
-            using (var connection = new NpgsqlConnection(ConnectionUtils.GetConnectionString()))
-            {
-                if (connection.State == ConnectionState.Closed)
-                {
-                    connection.Open();
+                    connection.Execute(@"CREATE DATABASE @databaseName", new { databaseName = databaseName });
                 }
 
                 DatabaseInitializer.Initialize(connection);
@@ -70,7 +61,7 @@ namespace Hangfire.PostgreSql.Tests.Utils
 
         private static void CleanTables()
         {
-            var provider = ConnectionUtils.CreateConnection();
+            var provider = ConnectionUtils.GetConnectionProvider();
             using (var connection = provider.AcquireConnection())
             {
                 PostgreSqlTestObjectsInitializer.CleanTables(connection.Connection);

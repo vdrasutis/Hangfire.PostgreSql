@@ -7,7 +7,7 @@ using Hangfire.Logging;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
 
-namespace Hangfire.PostgreSql
+namespace Hangfire.PostgreSql.Maintenance
 {
 #pragma warning disable 618 // TODO Remove when Hangfire 2.0 will be released
     internal sealed class ExpirationManager : IBackgroundProcess, IServerComponent

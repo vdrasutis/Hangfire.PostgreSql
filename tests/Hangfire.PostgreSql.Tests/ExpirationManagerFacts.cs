@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Maintenance;
 using Hangfire.PostgreSql.Tests.Utils;
 using Npgsql;
 using Xunit;
@@ -210,6 +211,6 @@ values ('key', 1, now() at time zone 'utc' - interval '{0} seconds') returning "
 
         private static string GetSchemaName() => ConnectionUtils.GetSchemaName();
 
-        private static ExpirationManager CreateManager() => new ExpirationManager(ConnectionUtils.CreateConnection(), TimeSpan.Zero);
+        private static ExpirationManager CreateManager() => new ExpirationManager(ConnectionUtils.GetConnectionProvider(), TimeSpan.Zero);
     }
 }

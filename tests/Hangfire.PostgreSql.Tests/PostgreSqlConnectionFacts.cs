@@ -38,7 +38,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new StorageConnection(ConnectionUtils.CreateConnection(), null, _options));
+                () => new StorageConnection(ConnectionUtils.GetConnectionProvider(), null, _options));
 
             Assert.Equal("queue", exception.ParamName);
         }
@@ -47,7 +47,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenOptionsIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new StorageConnection(ConnectionUtils.CreateConnection(), _queue.Object, null));
+                () => new StorageConnection(ConnectionUtils.GetConnectionProvider(), _queue.Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -55,7 +55,7 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void Dispose_DoesNotDisposeTheConnection()
         {
-            var sqlConnection = ConnectionUtils.CreateConnection();
+            var sqlConnection = ConnectionUtils.GetConnectionProvider();
             var connection = new StorageConnection(sqlConnection, _queue.Object, _options);
 
             connection.Dispose();
@@ -1270,7 +1270,7 @@ values (@key, @field, @value)";
 
         private void UseConnections(Action<NpgsqlConnection, StorageConnection> action)
         {
-            var provider = ConnectionUtils.CreateConnection();
+            var provider = ConnectionUtils.GetConnectionProvider();
             using (var connection = new StorageConnection(provider, _queue.Object, _options))
             {
                 using (var con = provider.AcquireConnection())
@@ -1283,7 +1283,7 @@ values (@key, @field, @value)";
         private void UseConnection(Action<StorageConnection> action)
         {
             using (var connection = new StorageConnection(
-                ConnectionUtils.CreateConnection(),
+                ConnectionUtils.GetConnectionProvider(),
                 _queue.Object,
                 _options))
             {

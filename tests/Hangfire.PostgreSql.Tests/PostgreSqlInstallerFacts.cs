@@ -29,7 +29,7 @@ namespace Hangfire.PostgreSql.Tests
 
         private static void UseConnection(Action<IConnectionProvider, NpgsqlConnection> action)
         {
-            var provider = ConnectionUtils.CreateConnection();
+            var provider = ConnectionUtils.GetConnectionProvider();
             using (var connection = provider.AcquireConnection())
             {
                 action(provider, connection.Connection);

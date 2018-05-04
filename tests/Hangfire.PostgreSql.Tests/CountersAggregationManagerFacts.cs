@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Maintenance;
 using Hangfire.PostgreSql.Tests.Utils;
 using Npgsql;
 using Xunit;
@@ -55,7 +56,7 @@ values ('stats:succeeded', 1)";
 
         private CountersAggregationManager CreateManager()
         {
-            var connectionProvider = ConnectionUtils.CreateConnection();
+            var connectionProvider = ConnectionUtils.GetConnectionProvider();
             return new CountersAggregationManager(connectionProvider, TimeSpan.FromSeconds(1));
         }
     }
