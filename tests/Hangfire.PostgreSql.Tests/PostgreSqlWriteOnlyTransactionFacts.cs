@@ -15,11 +15,11 @@ namespace Hangfire.PostgreSql.Tests
 {
     public class PostgreSqlWriteOnlyTransactionFacts
     {
-        private readonly Mock<IPersistentJobQueue> _queue;
+        private readonly Mock<IJobQueue> _queue;
 
         public PostgreSqlWriteOnlyTransactionFacts()
         {
-            _queue = new Mock<IPersistentJobQueue>();
+            _queue = new Mock<IJobQueue>();
         }
 
         [Fact]

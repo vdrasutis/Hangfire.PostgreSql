@@ -14,13 +14,13 @@ namespace Hangfire.PostgreSql
 {
     internal class WriteOnlyTransaction : JobStorageTransaction
     {
-        private readonly IPersistentJobQueue _queue;
+        private readonly IJobQueue _queue;
         private readonly IConnectionProvider _connectionProvider;
         private readonly Queue<Action<NpgsqlConnection, NpgsqlTransaction>> _commandQueue;
 
         public WriteOnlyTransaction(
             IConnectionProvider connectionProvider,
-            IPersistentJobQueue queue)
+            IJobQueue queue)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
             Guard.ThrowIfNull(queue, nameof(queue));

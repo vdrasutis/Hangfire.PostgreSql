@@ -10,12 +10,12 @@ using Hangfire.Storage;
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    internal sealed class PostgreSqlJobQueue : IPersistentJobQueue
+    internal sealed class JobQueue : IJobQueue
     {
         private readonly IConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
 
-        public PostgreSqlJobQueue(IConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
+        public JobQueue(IConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
             Guard.ThrowIfNull(options, nameof(options));
@@ -28,9 +28,6 @@ namespace Hangfire.PostgreSql
         {
             Guard.ThrowIfCollectionIsNullOrEmpty(queues, nameof(queues));
 
-            long timeoutSeconds = (long)_options.InvisibilityTimeout.Negate().TotalSeconds;
-
-            var queuesList = string.Join(",", queues.Select(x => string.Concat("'", x, "'")));
             var queuesOrder = string.Join(",", queues.Select(x => $@"queue='{x}'"));
 
             var fetchJobSqlTemplate = $@"
@@ -40,10 +37,10 @@ SET fetchedat = NOW() AT TIME ZONE 'UTC'
 WHERE jobqueue.id = (
     SELECT id
     FROM jobqueue
-    WHERE queue IN ({queuesList})
+    WHERE queue IN @queues
     AND (
        fetchedat IS NULL OR
-       fetchedat < NOW() AT TIME ZONE 'UTC' + INTERVAL '{timeoutSeconds} SECONDS'
+       fetchedat < NOW() AT TIME ZONE 'UTC' - @timeout
        )
     ORDER BY ({queuesOrder}) DESC
     LIMIT 1
@@ -52,15 +49,16 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
 COMMIT;
 ";
 
-            Entities.FetchedJob fetchedJob;
+            FetchedJob fetchedJob;
             do
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 using (var connectionHolder = _connectionProvider.AcquireConnection())
                 {
-                    fetchedJob = connectionHolder.Connection.Query<Entities.FetchedJob>(
-                            fetchJobSqlTemplate)
+                    fetchedJob = connectionHolder.Connection.Query<FetchedJob>(
+                            fetchJobSqlTemplate,
+                            new { queues = queues, timeout = _options.InvisibilityTimeout })
                         .SingleOrDefault();
                 }
 
@@ -72,7 +70,7 @@ COMMIT;
 
             } while (fetchedJob == null);
 
-            return new FetchedJob(
+            return new Job(
                 _connectionProvider,
                 fetchedJob.Id,
                 fetchedJob.JobId.ToString(CultureInfo.InvariantCulture),

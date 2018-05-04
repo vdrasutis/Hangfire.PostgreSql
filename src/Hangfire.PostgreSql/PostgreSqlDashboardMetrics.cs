@@ -4,7 +4,7 @@ using Hangfire.Dashboard;
 
 namespace Hangfire.PostgreSql
 {
-    [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
+    [PublicAPI]
     public static class PostgreSqlDashboardMetrics
     {
         public static readonly DashboardMetric MaxConnections = new DashboardMetric(

@@ -36,7 +36,7 @@ namespace Hangfire.PostgreSql
         }
 
 
-        public delegate TDto JobSelector<TDto>(SqlJob sqlJob, Job job, Dictionary<string, string> state);
+        public delegate TDto JobSelector<TDto>(SqlJob sqlJob, Common.Job job, Dictionary<string, string> state);
         public static JobList<TDto> DeserializeJobs<TDto>(ICollection<SqlJob> jobs, JobSelector<TDto> selector)
         {
             var result = new List<KeyValuePair<string, TDto>>(jobs.Count);
@@ -52,7 +52,7 @@ namespace Hangfire.PostgreSql
             return new JobList<TDto>(result);
         }
 
-        public static Job DeserializeJob(string invocationData, string arguments)
+        public static Common.Job DeserializeJob(string invocationData, string arguments)
         {
             var data = JobHelper.FromJson<InvocationData>(invocationData);
             data.Arguments = arguments;

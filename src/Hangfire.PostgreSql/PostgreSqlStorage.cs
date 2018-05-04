@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Hangfire.Annotations;
 using Hangfire.Logging;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
@@ -8,12 +9,13 @@ using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    public sealed class PostgreSqlStorage : JobStorage
+    [PublicAPI]
+    public sealed class PostgreSqlStorage : JobStorage, IDisposable
     {
         private readonly PostgreSqlStorageOptions _options;
         private readonly IConnectionProvider _connectionProvider;
         private readonly string _storageInfo;
-        private readonly PostgreSqlConnection _postgreSqlConnection;
+        private readonly StorageConnection _storageConnection;
         private readonly MonitoringApi _monitoringApi;
 
         /// <summary>
@@ -46,10 +48,9 @@ namespace Hangfire.PostgreSql
             var builder = new NpgsqlConnectionStringBuilder(connectionString);
             _connectionProvider = CreateConnectionProvider(connectionString, builder);
 
-            var queue = new PostgreSqlJobQueue(_connectionProvider, _options);
-            var queueMonitoringApi = new JobQueueMonitoringApi(_connectionProvider, _options);
-            _postgreSqlConnection = new PostgreSqlConnection(_connectionProvider, queue, _options);
-            _monitoringApi = new MonitoringApi(_connectionProvider, queueMonitoringApi);
+            var queue = new JobQueue(_connectionProvider, _options);
+            _storageConnection = new StorageConnection(_connectionProvider, queue, _options);
+            _monitoringApi = new MonitoringApi(_connectionProvider);
             _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {builder.SearchPath}";
 
             PrepareSchemaIfNecessary();
@@ -58,8 +59,8 @@ namespace Hangfire.PostgreSql
         private static IConnectionProvider CreateConnectionProvider(string connectionString, NpgsqlConnectionStringBuilder connectionStringBuilder)
         {
             return connectionStringBuilder.Pooling
-                ? (IConnectionProvider)new DefaultConnectionProvider(connectionString)
-                : new NpgsqlConnectionProvider(connectionString);
+                ? new NpgsqlConnectionProvider(connectionString)
+                : (IConnectionProvider) new DefaultConnectionProvider(connectionString);
         }
 
         private void PrepareSchemaIfNecessary()
@@ -77,7 +78,7 @@ namespace Hangfire.PostgreSql
 
         public override IMonitoringApi GetMonitoringApi() => _monitoringApi;
 
-        public override IStorageConnection GetConnection() => _postgreSqlConnection;
+        public override IStorageConnection GetConnection() => _storageConnection;
 
 #pragma warning disable 618 // TODO Remove when Hangfire 2.0 will be released
         public override IEnumerable<IServerComponent> GetComponents()
@@ -100,5 +101,10 @@ namespace Hangfire.PostgreSql
         }
 
         public override string ToString() => _storageInfo;
+
+        public void Dispose()
+        {
+            _connectionProvider.Dispose();
+        }
     }
 }

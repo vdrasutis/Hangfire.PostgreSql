@@ -19,7 +19,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlJobQueue(null, new PostgreSqlStorageOptions()));
+                () => new JobQueue(null, new PostgreSqlStorageOptions()));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
@@ -28,7 +28,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenOptionsValueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlJobQueue(new Mock<IConnectionProvider>().Object, null));
+                () => new JobQueue(new Mock<IConnectionProvider>().Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -122,7 +122,7 @@ values (@jobId, @queue) returning ""id""";
                 var queue = CreateJobQueue();
 
                 // Act
-                var payload = (FetchedJob)queue.Dequeue(
+                var payload = (Job)queue.Dequeue(
                     DefaultQueues,
                     CreateTimingOutCancellationToken());
 
@@ -295,14 +295,14 @@ select i.""id"", @queue from i;
 
                 var queue = CreateJobQueue();
 
-                var queueFirst = (FetchedJob)queue.Dequeue(
+                var queueFirst = (Job)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
                 Assert.NotNull(queueFirst.JobId);
                 Assert.Contains(queueFirst.Queue, queueNames);
 
-                var queueLast = (FetchedJob)queue.Dequeue(
+                var queueLast = (Job)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
@@ -333,10 +333,10 @@ select i.""id"", @queue from i;
             return source.Token;
         }
 
-        private static PostgreSqlJobQueue CreateJobQueue()
+        private static JobQueue CreateJobQueue()
         {
             var provider = ConnectionUtils.CreateConnection();
-            return new PostgreSqlJobQueue(provider, new PostgreSqlStorageOptions());
+            return new JobQueue(provider, new PostgreSqlStorageOptions());
         }
 
         private static void UseConnection(Action<NpgsqlConnection> action)

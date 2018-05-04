@@ -16,12 +16,12 @@ namespace Hangfire.PostgreSql.Tests
 {
     public class PostgreSqlConnectionFacts
     {
-        private readonly Mock<IPersistentJobQueue> _queue;
+        private readonly Mock<IJobQueue> _queue;
         private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlConnectionFacts()
         {
-            _queue = new Mock<IPersistentJobQueue>();
+            _queue = new Mock<IJobQueue>();
             _options = new PostgreSqlStorageOptions();
         }
 
@@ -29,7 +29,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnection(null, _queue.Object, _options));
+                () => new StorageConnection(null, _queue.Object, _options));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
@@ -38,7 +38,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnection(ConnectionUtils.CreateConnection(), null, _options));
+                () => new StorageConnection(ConnectionUtils.CreateConnection(), null, _options));
 
             Assert.Equal("queue", exception.ParamName);
         }
@@ -47,7 +47,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenOptionsIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnection(ConnectionUtils.CreateConnection(), _queue.Object, null));
+                () => new StorageConnection(ConnectionUtils.CreateConnection(), _queue.Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -56,7 +56,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Dispose_DoesNotDisposeTheConnection()
         {
             var sqlConnection = ConnectionUtils.CreateConnection();
-            var connection = new PostgreSqlConnection(sqlConnection, _queue.Object, _options);
+            var connection = new StorageConnection(sqlConnection, _queue.Object, _options);
 
             connection.Dispose();
 
@@ -120,7 +120,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 var exception = Assert.Throws<ArgumentNullException>(
                     () => connection.CreateExpiredJob(
-                        Job.FromExpression(() => Worker.DoWork("hello")),
+                        Common.Job.FromExpression(() => Worker.DoWork("hello")),
                         null,
                         DateTime.UtcNow,
                         TimeSpan.Zero));
@@ -136,7 +136,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 var createdAt = new DateTime(2012, 12, 12);
                 var jobId = connection.CreateExpiredJob(
-                    Job.FromExpression(() => Worker.DoWork("Hello")),
+                    Common.Job.FromExpression(() => Worker.DoWork("Hello")),
                     new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" } },
                     createdAt,
                     TimeSpan.FromDays(1));
@@ -197,7 +197,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
 
             UseConnections((sql, connection) =>
             {
-                var job = Job.FromExpression(() => Worker.DoWork("wrong"));
+                var job = Common.Job.FromExpression(() => Worker.DoWork("wrong"));
 
                 var jobId = (int)sql.Query(
                     arrangeSql,
@@ -1268,10 +1268,10 @@ values (@key, @field, @value)";
             });
         }
 
-        private void UseConnections(Action<NpgsqlConnection, PostgreSqlConnection> action)
+        private void UseConnections(Action<NpgsqlConnection, StorageConnection> action)
         {
             var provider = ConnectionUtils.CreateConnection();
-            using (var connection = new PostgreSqlConnection(provider, _queue.Object, _options))
+            using (var connection = new StorageConnection(provider, _queue.Object, _options))
             {
                 using (var con = provider.AcquireConnection())
                 {
@@ -1280,9 +1280,9 @@ values (@key, @field, @value)";
             }
         }
 
-        private void UseConnection(Action<PostgreSqlConnection> action)
+        private void UseConnection(Action<StorageConnection> action)
         {
-            using (var connection = new PostgreSqlConnection(
+            using (var connection = new StorageConnection(
                 ConnectionUtils.CreateConnection(),
                 _queue.Object,
                 _options))

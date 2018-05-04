@@ -44,7 +44,7 @@ namespace Hangfire.PostgreSql.Tests
         public void GetConnection_ReturnsNonNullInstance()
         {
             var storage = CreateStorage();
-            using (var connection = (PostgreSqlConnection)storage.GetConnection())
+            using (var connection = (StorageConnection)storage.GetConnection())
             {
                 Assert.NotNull(connection);
             }
