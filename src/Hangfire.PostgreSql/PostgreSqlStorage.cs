@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Hangfire.Logging;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
 using Hangfire.Storage;
 using Npgsql;
@@ -10,10 +11,10 @@ namespace Hangfire.PostgreSql
     public sealed class PostgreSqlStorage : JobStorage
     {
         private readonly PostgreSqlStorageOptions _options;
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly string _storageInfo;
         private readonly PostgreSqlConnection _postgreSqlConnection;
-        private readonly PostgreSqlMonitoringApi _postgreSqlMonitoringApi;
+        private readonly MonitoringApi _monitoringApi;
 
         /// <summary>
         /// Initializes PostgreSqlStorage with the provided connection string and default PostgreSqlStorageOptions.
@@ -40,32 +41,41 @@ namespace Hangfire.PostgreSql
             Guard.ThrowIfNull(options, nameof(options));
             Guard.ThrowIfConnectionStringIsInvalid(connectionString);
 
-            var builder = new NpgsqlConnectionStringBuilder(connectionString) { SearchPath = options.SchemaName ?? "hangfire" };
-            connectionString = builder.ToString();
-
             _options = options;
-            _connectionProvider = new PostgreSqlConnectionProvider(connectionString, _options);
+
+            var builder = new NpgsqlConnectionStringBuilder(connectionString);
+            _connectionProvider = CreateConnectionProvider(connectionString, builder);
 
             var queue = new PostgreSqlJobQueue(_connectionProvider, _options);
-            var queueMonitoringApi = new PostgreSqlJobQueueMonitoringApi(_connectionProvider, _options);
+            var queueMonitoringApi = new JobQueueMonitoringApi(_connectionProvider, _options);
             _postgreSqlConnection = new PostgreSqlConnection(_connectionProvider, queue, _options);
-            _postgreSqlMonitoringApi = new PostgreSqlMonitoringApi(_connectionProvider, queueMonitoringApi, _options);
+            _monitoringApi = new MonitoringApi(_connectionProvider, queueMonitoringApi);
+            _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {builder.SearchPath}";
 
-            _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {_options.SchemaName}";
+            PrepareSchemaIfNecessary();
+        }
+
+        private static IConnectionProvider CreateConnectionProvider(string connectionString, NpgsqlConnectionStringBuilder connectionStringBuilder)
+        {
+            return connectionStringBuilder.Pooling
+                ? (IConnectionProvider)new DefaultConnectionProvider(connectionString)
+                : new NpgsqlConnectionProvider(connectionString);
+        }
+
+        private void PrepareSchemaIfNecessary()
+        {
             if (_options.PrepareSchemaIfNecessary)
             {
                 using (var connectionHolder = _connectionProvider.AcquireConnection())
                 {
-                    PostgreSqlObjectsInstaller.Install(connectionHolder.Connection, _options.SchemaName);
+                    DatabaseInitializer.Initialize(connectionHolder.Connection);
                 }
             }
         }
 
-        internal IPostgreSqlConnectionProvider ConnectionProvider => _connectionProvider;
+        internal IConnectionProvider ConnectionProvider => _connectionProvider;
 
-        internal PostgreSqlStorageOptions Options => _options;
-
-        public override IMonitoringApi GetMonitoringApi() => _postgreSqlMonitoringApi;
+        public override IMonitoringApi GetMonitoringApi() => _monitoringApi;
 
         public override IStorageConnection GetConnection() => _postgreSqlConnection;
 
@@ -75,19 +85,18 @@ namespace Hangfire.PostgreSql
 #pragma warning restore 618
             {
                 new ExpirationManager(_connectionProvider),
-                new ExpiredLocksManager(_connectionProvider, _options), 
-                new CountersAggregationManager(_connectionProvider, _options)
+                new ExpiredLocksManager(_connectionProvider, _options.DistributedLockTimeout),
+                new CountersAggregationManager(_connectionProvider)
             };
 
         public override void WriteOptionsToLog(ILog logger)
         {
             logger.Info("Using the following options for SQL Server job storage:");
-            logger.InfoFormat("    Schema: {0}.", _options.SchemaName);
+            logger.Info(_storageInfo);
             logger.InfoFormat("    Prepare schema: {0}.", _options.PrepareSchemaIfNecessary);
             logger.InfoFormat("    Queue poll interval: {0}.", _options.QueuePollInterval);
             logger.InfoFormat("    Invisibility timeout: {0}.", _options.InvisibilityTimeout);
             logger.InfoFormat("    Distributed lock timeout: {0}.", _options.DistributedLockTimeout);
-            logger.InfoFormat("    Connections count: {0}.", _options.ConnectionsCount);
         }
 
         public override string ToString() => _storageInfo;

@@ -1,4 +1,5 @@
 ﻿using System;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Xunit;
 
@@ -9,32 +10,22 @@ namespace Hangfire.PostgreSql.Tests
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionStringIsNull()
         {
-            var options = new PostgreSqlStorageOptions();
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnectionProvider(null, options));
+                () => new DefaultConnectionProvider(null));
             Assert.Equal("connectionString", exception.ParamName);
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionStringIsInvalid()
         {
-            var options = new PostgreSqlStorageOptions();
             var exception = Assert.Throws<ArgumentException>(
-                () => new PostgreSqlConnectionProvider("testtest", options));
-        }
-
-        [Fact]
-        public void Ctor_ThrowsAnException_WhenOptionsIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnectionProvider(ConnectionUtils.GetConnectionString(), null));
-            Assert.Equal("options", exception.ParamName);
+                () => new DefaultConnectionProvider("testtest"));
         }
 
         [Fact]
         public void AcquireConnection_CreatesOneConnection()
         {
-            var provider = CreateProvider(1);
+            var provider = CreateProvider();
 
             using (var connectionHolder = provider.AcquireConnection())
             {
@@ -45,7 +36,7 @@ namespace Hangfire.PostgreSql.Tests
         [Fact]
         public void AcquireConnection_CanReuseConnection()
         {
-            var provider = CreateProvider(1);
+            var provider = CreateProvider();
 
             using (var connectionHolder = provider.AcquireConnection())
             {
@@ -62,7 +53,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Dtor_ReleasesConnections()
         {
             var connectionsCount = 10;
-            var provider = CreateProvider(connectionsCount);
+            var provider = CreateProvider();
 
             for (var i = 0; i < connectionsCount; i++)
             {
@@ -74,9 +65,9 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(0, provider.ActiveConnections);
         }
 
-        private static PostgreSqlConnectionProvider CreateProvider(int connectionsCount)
+        private static DefaultConnectionProvider CreateProvider()
         {
-            return new PostgreSqlConnectionProvider(ConnectionUtils.GetConnectionString(), new PostgreSqlStorageOptions { ConnectionsCount = connectionsCount });
+            return new DefaultConnectionProvider(ConnectionUtils.GetConnectionString());
         }
     }
 }

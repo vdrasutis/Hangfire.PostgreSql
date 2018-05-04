@@ -1,4 +1,6 @@
-﻿namespace Hangfire.PostgreSql
+﻿using Hangfire.Annotations;
+
+namespace Hangfire.PostgreSql
 {
     public static class PostgreSqlBootstrapperConfigurationExtensions
     {
@@ -9,6 +11,7 @@
         /// </summary>
         /// <param name="configuration">Configuration</param>
         /// <param name="nameOrConnectionString">Connection string or its name</param>
+        [PublicAPI]
         public static PostgreSqlStorage UsePostgreSqlStorage(
             this GlobalConfiguration configuration,
             string nameOrConnectionString)
@@ -27,6 +30,7 @@
         /// <param name="configuration">Configuration</param>
         /// <param name="nameOrConnectionString">Connection string or its name</param>
         /// <param name="options">Advanced options</param>
+        [PublicAPI]
         public static PostgreSqlStorage UsePostgreSqlStorage(
             this GlobalConfiguration configuration,
             string nameOrConnectionString,
@@ -45,6 +49,7 @@
         /// </summary>
         /// <param name="configuration">Configuration</param>
         /// <param name="nameOrConnectionString">Connection string or its name</param>
+        [PublicAPI]
         public static PostgreSqlStorage UsePostgreSqlStorage(
             this IGlobalConfiguration configuration,
             string nameOrConnectionString)
@@ -63,6 +68,7 @@
         /// <param name="configuration">Configuration</param>
         /// <param name="nameOrConnectionString">Connection string or its name</param>
         /// <param name="options">Advanced options</param>
+        [PublicAPI]
         public static PostgreSqlStorage UsePostgreSqlStorage(
             this IGlobalConfiguration configuration,
             string nameOrConnectionString,

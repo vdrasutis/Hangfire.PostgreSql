@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Moq;
 using Npgsql;
@@ -27,7 +28,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenOptionsValueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlJobQueue(new Mock<IPostgreSqlConnectionProvider>().Object, null));
+                () => new PostgreSqlJobQueue(new Mock<IConnectionProvider>().Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -121,7 +122,7 @@ values (@jobId, @queue) returning ""id""";
                 var queue = CreateJobQueue();
 
                 // Act
-                var payload = (PostgreSqlFetchedJob)queue.Dequeue(
+                var payload = (FetchedJob)queue.Dequeue(
                     DefaultQueues,
                     CreateTimingOutCancellationToken());
 
@@ -294,14 +295,14 @@ select i.""id"", @queue from i;
 
                 var queue = CreateJobQueue();
 
-                var queueFirst = (PostgreSqlFetchedJob)queue.Dequeue(
+                var queueFirst = (FetchedJob)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
                 Assert.NotNull(queueFirst.JobId);
                 Assert.Contains(queueFirst.Queue, queueNames);
 
-                var queueLast = (PostgreSqlFetchedJob)queue.Dequeue(
+                var queueLast = (FetchedJob)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
@@ -335,10 +336,7 @@ select i.""id"", @queue from i;
         private static PostgreSqlJobQueue CreateJobQueue()
         {
             var provider = ConnectionUtils.CreateConnection();
-            return new PostgreSqlJobQueue(provider, new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            });
+            return new PostgreSqlJobQueue(provider, new PostgreSqlStorageOptions());
         }
 
         private static void UseConnection(Action<NpgsqlConnection> action)

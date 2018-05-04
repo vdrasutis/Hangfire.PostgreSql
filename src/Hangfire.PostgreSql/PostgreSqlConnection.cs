@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using Dapper;
 using Hangfire.Common;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Entities;
 using Hangfire.Server;
 using Hangfire.Storage;
@@ -15,12 +16,12 @@ namespace Hangfire.PostgreSql
 {
     internal class PostgreSqlConnection : JobStorageConnection
     {
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly IPersistentJobQueue _queue;
         private readonly PostgreSqlStorageOptions _options;
 
         public PostgreSqlConnection(
-            IPostgreSqlConnectionProvider connectionProvider,
+            IConnectionProvider connectionProvider,
             IPersistentJobQueue queue,
             PostgreSqlStorageOptions options)
         {
@@ -34,10 +35,10 @@ namespace Hangfire.PostgreSql
         }
 
         public override IWriteOnlyTransaction CreateWriteTransaction()
-            => new PostgreSqlWriteOnlyTransaction(_connectionProvider, _queue);
+            => new WriteOnlyTransaction(_connectionProvider, _queue);
 
         public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
-            => new PostgreSqlDistributedLock(
+            => new DistributedLock(
                 "hangfire:" + resource,
                 timeout,
                 _connectionProvider);

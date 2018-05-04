@@ -11,7 +11,7 @@ namespace Hangfire.PostgreSql.Tests
 
         public PostgreSqlStorageFacts()
         {
-            _options = new PostgreSqlStorageOptions { SchemaName = ConnectionUtils.GetSchemaName(), PrepareSchemaIfNecessary = false };
+            _options = new PostgreSqlStorageOptions { PrepareSchemaIfNecessary = false };
         }
 
         [Fact]

@@ -2,22 +2,23 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Connectivity;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    internal class PostgreSqlDistributedLock : IDisposable
+    internal class DistributedLock : IDisposable
     {
         private static readonly ThreadLocal<Random> Random = new ThreadLocal<Random>(() => new Random());
 
         private readonly string _resource;
         private readonly TimeSpan _timeout;
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
+        private readonly IConnectionProvider _connectionProvider;
         private bool _completed;
 
-        public PostgreSqlDistributedLock(string resource,
+        public DistributedLock(string resource,
             TimeSpan timeout,
-            IPostgreSqlConnectionProvider connectionProvider)
+            IConnectionProvider connectionProvider)
         {
             Guard.ThrowIfNullOrEmpty(resource, nameof(resource));
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
@@ -49,7 +50,7 @@ ON CONFLICT (resource) DO NOTHING
                 }
             } while (IsNotTimeouted(lockAcquiringWatch.Elapsed, ref sleepTime));
 
-            throw new PostgreSqlDistributedLockException(
+            throw new DistributedLockException(
                 $"Could not place a lock on the resource \'{_resource}\': Lock timeout.");
         }
 
@@ -84,7 +85,7 @@ WHERE resource = @resource;
                 var rowsAffected = connectionHolder.Connection.Execute(query, new { resource = _resource });
                 if (rowsAffected <= 0)
                 {
-                    throw new PostgreSqlDistributedLockException(
+                    throw new DistributedLockException(
                         $"Could not release a lock on the resource '{_resource}'. Lock does not exists.");
                 }
             }

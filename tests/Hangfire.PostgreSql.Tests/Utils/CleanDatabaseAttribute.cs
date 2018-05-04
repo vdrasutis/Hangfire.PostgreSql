@@ -40,8 +40,7 @@ namespace Hangfire.PostgreSql.Tests.Utils
 
         private static void RecreateSchemaAndInstallObjects()
         {
-            using (var connection = new NpgsqlConnection(
-                ConnectionUtils.GetMasterConnectionString()))
+            using (var connection = ConnectionUtils.CreateNpgConnection())
             {
                 bool databaseExists = connection.Query<bool?>(
                                           @"select true :: boolean from pg_database where datname = @databaseName;",
@@ -64,7 +63,7 @@ namespace Hangfire.PostgreSql.Tests.Utils
                     connection.Open();
                 }
 
-                PostgreSqlObjectsInstaller.Install(connection);
+                DatabaseInitializer.Initialize(connection);
                 PostgreSqlTestObjectsInitializer.CleanTables(connection);
             }
         }

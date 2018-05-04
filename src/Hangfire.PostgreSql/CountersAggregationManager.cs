@@ -3,6 +3,7 @@ using System.Data;
 using System.Threading;
 using Dapper;
 using Hangfire.Logging;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
 
 namespace Hangfire.PostgreSql
@@ -19,23 +20,20 @@ namespace Hangfire.PostgreSql
             "stats:deleted",
         };
 
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
-        private readonly PostgreSqlStorageOptions _options;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly TimeSpan _checkInterval;
 
-        public CountersAggregationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
-            : this(connectionProvider, options, TimeSpan.FromHours(1))
+        public CountersAggregationManager(IConnectionProvider connectionProvider)
+            : this(connectionProvider, TimeSpan.FromHours(1))
         {
         }
 
-        public CountersAggregationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options, TimeSpan checkInterval)
+        public CountersAggregationManager(IConnectionProvider connectionProvider, TimeSpan checkInterval)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
-            Guard.ThrowIfNull(options, nameof(options));
             Guard.ThrowIfValueIsNotPositive(checkInterval, nameof(checkInterval));
 
             _connectionProvider = connectionProvider;
-            _options = options;
             _checkInterval = checkInterval;
         }
 

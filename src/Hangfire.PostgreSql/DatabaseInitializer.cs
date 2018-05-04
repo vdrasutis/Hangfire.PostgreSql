@@ -10,11 +10,11 @@ using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    internal static class PostgreSqlObjectsInstaller
+    internal static class DatabaseInitializer
     {
         private static readonly ILog Log = LogProvider.GetLogger(typeof(PostgreSqlStorage));
 
-        public static void Install(NpgsqlConnection connection, string schemaName = "hangfire")
+        public static void Initialize(NpgsqlConnection connection, string schemaName = "hangfire")
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
@@ -32,7 +32,7 @@ namespace Hangfire.PostgreSql
                     try
                     {
                         script = GetStringResource(
-                            typeof(PostgreSqlObjectsInstaller).GetTypeInfo().Assembly,
+                            typeof(DatabaseInitializer).GetTypeInfo().Assembly,
                             $"Hangfire.PostgreSql.Schema.Install.v{version.ToString(CultureInfo.InvariantCulture)}.sql");
                     }
                     catch (MissingManifestResourceException)

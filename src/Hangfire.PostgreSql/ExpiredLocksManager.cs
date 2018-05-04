@@ -1,5 +1,7 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
 
 namespace Hangfire.PostgreSql
@@ -8,13 +10,13 @@ namespace Hangfire.PostgreSql
     public class ExpiredLocksManager : IBackgroundProcess, IServerComponent
 #pragma warning restore 618
     {
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
-        private readonly PostgreSqlStorageOptions _options;
+        private readonly IConnectionProvider _connectionProvider;
+        private readonly TimeSpan _lockTimeOut;
 
-        internal ExpiredLocksManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
+        internal ExpiredLocksManager(IConnectionProvider connectionProvider, TimeSpan lockTimeOut)
         {
             _connectionProvider = connectionProvider;
-            _options = options;
+            _lockTimeOut = lockTimeOut;
         }
 
         public void Execute(BackgroundProcessContext context) => Execute(context.CancellationToken);
@@ -31,12 +33,12 @@ WHERE acquired < current_timestamp at time zone 'UTC' - @timeout";
 
                 var parameters = new
                 {
-                    timeout = _options.DistributedLockTimeout
+                    timeout = _lockTimeOut
                 };
                 connectionHolder.Connection.Execute(query, parameters);
             }
 
-            cancellationToken.WaitHandle.WaitOne(_options.DistributedLockTimeout);
+            cancellationToken.WaitHandle.WaitOne(_lockTimeOut);
         }
     }
 }

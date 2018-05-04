@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Npgsql;
 using Xunit;
@@ -20,7 +21,7 @@ namespace Hangfire.PostgreSql.Tests
                 connection.Execute(@"INSERT INTO lock(resource, acquired) VALUES ('hello', current_timestamp at time zone 'UTC' - @timeout)", new { timeout });
 
                 // Act
-                var expiredLocksManager = new ExpiredLocksManager(provider, new PostgreSqlStorageOptions { DistributedLockTimeout = timeout });
+                var expiredLocksManager = new ExpiredLocksManager(provider, timeout);
                 expiredLocksManager.Execute(CancellationToken.None);
 
                 // Assert
@@ -29,7 +30,7 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        private void UseConnection(Action<IPostgreSqlConnectionProvider, NpgsqlConnection> action)
+        private void UseConnection(Action<IConnectionProvider, NpgsqlConnection> action)
         {
             var provider = ConnectionUtils.CreateConnection();
             using (var connection = provider.AcquireConnection())

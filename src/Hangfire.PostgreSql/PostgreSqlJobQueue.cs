@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Entities;
 using Hangfire.Storage;
 
@@ -11,10 +12,10 @@ namespace Hangfire.PostgreSql
 {
     internal sealed class PostgreSqlJobQueue : IPersistentJobQueue
     {
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
 
-        public PostgreSqlJobQueue(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
+        public PostgreSqlJobQueue(IConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
             Guard.ThrowIfNull(options, nameof(options));
@@ -51,14 +52,14 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
 COMMIT;
 ";
 
-            FetchedJob fetchedJob;
+            Entities.FetchedJob fetchedJob;
             do
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 using (var connectionHolder = _connectionProvider.AcquireConnection())
                 {
-                    fetchedJob = connectionHolder.Connection.Query<FetchedJob>(
+                    fetchedJob = connectionHolder.Connection.Query<Entities.FetchedJob>(
                             fetchJobSqlTemplate)
                         .SingleOrDefault();
                 }
@@ -71,7 +72,7 @@ COMMIT;
 
             } while (fetchedJob == null);
 
-            return new PostgreSqlFetchedJob(
+            return new FetchedJob(
                 _connectionProvider,
                 fetchedJob.Id,
                 fetchedJob.JobId.ToString(CultureInfo.InvariantCulture),

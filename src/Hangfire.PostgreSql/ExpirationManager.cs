@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Threading;
 using Dapper;
 using Hangfire.Logging;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
 
 namespace Hangfire.PostgreSql
@@ -26,15 +27,15 @@ namespace Hangfire.PostgreSql
             "hash",
         };
 
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly TimeSpan _checkInterval;
 
-        public ExpirationManager(IPostgreSqlConnectionProvider connectionProvider)
+        public ExpirationManager(IConnectionProvider connectionProvider)
             : this(connectionProvider, TimeSpan.FromHours(1))
         {
         }
 
-        public ExpirationManager(IPostgreSqlConnectionProvider connectionProvider, TimeSpan checkInterval)
+        public ExpirationManager(IConnectionProvider connectionProvider, TimeSpan checkInterval)
         {
             _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
             _checkInterval = checkInterval;

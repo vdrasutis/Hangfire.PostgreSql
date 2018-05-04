@@ -2,6 +2,7 @@
 using System.Linq;
 using Dapper;
 using Hangfire.Common;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Entities;
 using Hangfire.States;
 using Hangfire.Storage.Monitoring;
@@ -9,15 +10,15 @@ using Hangfire.Storage.Monitoring;
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    internal class PostgreSqlJobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
+    internal class JobQueueMonitoringApi : IPersistentJobQueueMonitoringApi
     {
         private const string EnqueuedFetchCondition = "IS NULL";
         private const string FetchedFetchCondition = "IS NOT NULL";
 
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly PostgreSqlStorageOptions _options;
 
-        public PostgreSqlJobQueueMonitoringApi(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
+        public JobQueueMonitoringApi(IConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
             Guard.ThrowIfNull(options, nameof(options));
@@ -28,13 +29,13 @@ namespace Hangfire.PostgreSql
 
         public IEnumerable<string> GetQueues()
         {
-            string sqlQuery = $@"
+            const string query = @"
 SELECT DISTINCT queue 
-FROM ""{_options.SchemaName}"".jobqueue;
+FROM jobqueue;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                return connectionHolder.Connection.Query(sqlQuery).Select(x => (string)x.queue).ToList();
+                return connectionHolder.Connection.Query(query).Select(x => (string)x.queue).ToList();
             }
         }
 
@@ -78,7 +79,7 @@ FROM ""{_options.SchemaName}"".jobqueue;
             }
         }
 
-        private string GetQuery(string queue, int @from, int perPage, string stateName, string fetchCondition) => $@"
+        private static string GetQuery(string queue, int @from, int perPage, string stateName, string fetchCondition) => $@"
 SELECT j.id ""Id"",
        j.invocationdata ""InvocationData"", 
        j.arguments ""Arguments"", 
@@ -87,9 +88,9 @@ SELECT j.id ""Id"",
        s.name ""StateName"", 
        s.reason""StateReason"", 
        s.data ""StateData""
-FROM ""{_options.SchemaName}"".jobqueue jq
-LEFT JOIN ""{_options.SchemaName}"".job j ON jq.jobid = j.id
-LEFT JOIN ""{_options.SchemaName}"".state s ON s.id = j.stateid
+FROM jobqueue jq
+LEFT JOIN job j ON jq.jobid = j.id
+LEFT JOIN state s ON s.id = j.stateid
 WHERE jq.queue = '{queue}'
 AND jq.fetchedat {fetchCondition}
 AND s.name = '{stateName}'
@@ -97,23 +98,23 @@ LIMIT {perPage} OFFSET {from};";
 
         public (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue)
         {
-            var sqlQuery = @"
+            const string query = @"
 SELECT (
         SELECT COUNT(*) 
-        FROM """ + _options.SchemaName + @""".""jobqueue"" 
+        FROM ""jobqueue"" 
         WHERE ""fetchedat"" IS NULL 
         AND ""queue"" = @queue
     ) ""EnqueuedCount"", 
     (
         SELECT COUNT(*) 
-        FROM """ + _options.SchemaName + @""".""jobqueue"" 
+        FROM ""jobqueue"" 
         WHERE ""fetchedat"" IS NOT NULL 
         AND ""queue"" = @queue
     ) ""FetchedCount"";
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                var result = connectionHolder.Connection.Query(sqlQuery, new { queue = queue }).Single();
+                var result = connectionHolder.Connection.Query(query, new { queue = queue }).Single();
 
                 return (result.EnqueuedCount, result.FetchedCount);
             }

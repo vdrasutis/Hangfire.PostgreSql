@@ -5,38 +5,59 @@ using System.Threading;
 using Hangfire.Logging;
 using Npgsql;
 
-namespace Hangfire.PostgreSql
+namespace Hangfire.PostgreSql.Connectivity
 {
-    internal sealed class PostgreSqlConnectionProvider : IPostgreSqlConnectionProvider
+    internal sealed class DefaultConnectionProvider : IConnectionProvider
     {
-        private static readonly ILog Logger = LogProvider.GetLogger(typeof(PostgreSqlConnectionProvider));
+        private static readonly ILog Logger = LogProvider.GetLogger(typeof(DefaultConnectionProvider));
 
         private readonly string _connectionString;
-        private readonly PostgreSqlStorageOptions _options;
-        private int _activeConnections;
         private readonly ConcurrentBag<NpgsqlConnection> _connectionQueue;
         private readonly ConcurrentBag<NpgsqlConnection> _connectionPool;
 
-        public PostgreSqlConnectionProvider(string connectionString, PostgreSqlStorageOptions options)
+        private int _activeConnections;
+        private readonly int _minConnections;
+        private readonly int _maxConnections;
+
+        public DefaultConnectionProvider(string connectionString)
         {
             Guard.ThrowIfConnectionStringIsInvalid(connectionString);
-            Guard.ThrowIfNull(options, nameof(options));
-
+            
             _connectionString = connectionString;
-            _options = options;
             _connectionQueue = new ConcurrentBag<NpgsqlConnection>();
             _connectionPool = new ConcurrentBag<NpgsqlConnection>();
+
+            var connectionStringBuilder = new NpgsqlConnectionStringBuilder(_connectionString);
+            _minConnections = connectionStringBuilder.MinPoolSize;
+            _maxConnections = connectionStringBuilder.MaxPoolSize;
+
+            if (_minConnections != 0)
+            {
+                PreInitializePool();
+            }
+        }
+
+        private void PreInitializePool()
+        {
+            // simple and stupid impl now. TODO: rework
+            for (var i = 0; i < _minConnections; i++)
+            {
+                using (var connection = AcquireConnection())
+                {
+                    // do nothing
+                }
+            }
         }
 
         internal int ActiveConnections => _activeConnections;
 
-        public PostgreSqlConnectionHolder AcquireConnection()
+        public ConnectionHolder AcquireConnection()
         {
             var connection = GetFreeConnection();
-            return new PostgreSqlConnectionHolder(this, connection);
+            return new ConnectionHolder(connection, ReleaseConnection);
         }
 
-        public void ReleaseConnection(PostgreSqlConnectionHolder connectionHolder)
+        private void ReleaseConnection(ConnectionHolder connectionHolder)
         {
             if (connectionHolder.Disposed) return;
             _connectionQueue.Add(connectionHolder.Connection);
@@ -44,22 +65,24 @@ namespace Hangfire.PostgreSql
 
         private NpgsqlConnection GetFreeConnection()
         {
+            var spinWait = new SpinWait();
             NpgsqlConnection connection;
             while (!_connectionQueue.TryTake(out connection))
             {
                 connection = CreateConnectionIfNeeded();
                 if (connection != null) return connection;
-                Thread.Sleep(5);
+
+                spinWait.SpinOnce();
             }
             return connection;
         }
 
         private NpgsqlConnection CreateConnectionIfNeeded()
         {
-            if (_activeConnections >= _options.ConnectionsCount) return null;
+            if (_activeConnections >= _maxConnections) return null;
             Interlocked.Increment(ref _activeConnections);
 
-            if (_activeConnections > _options.ConnectionsCount)
+            if (_activeConnections > _maxConnections)
             {
                 Interlocked.Decrement(ref _activeConnections);
                 return null;

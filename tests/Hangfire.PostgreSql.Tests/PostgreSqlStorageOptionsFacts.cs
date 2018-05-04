@@ -13,7 +13,6 @@ namespace Hangfire.PostgreSql.Tests
             Assert.True(options.QueuePollInterval > TimeSpan.Zero);
             Assert.True(options.InvisibilityTimeout > TimeSpan.Zero);
             Assert.True(options.DistributedLockTimeout > TimeSpan.Zero);
-            Assert.True(options.ConnectionsCount > 0);
             Assert.True(options.PrepareSchemaIfNecessary);
         }
 
@@ -87,30 +86,6 @@ namespace Hangfire.PostgreSql.Tests
             var options = new PostgreSqlStorageOptions();
             options.DistributedLockTimeout = TimeSpan.FromSeconds(1);
             Assert.Equal(TimeSpan.FromSeconds(1), options.DistributedLockTimeout);
-        }
-
-        [Fact]
-        public void Set_ConnectionsCount_ShouldThrowAnException_WhenGivenValueIsEqualToZero()
-        {
-            var options = new PostgreSqlStorageOptions();
-            Assert.Throws<ArgumentException>(
-                () => options.ConnectionsCount = 0);
-        }
-
-        [Fact]
-        public void Set_ConnectionsCount_ShouldThrowAnException_WhenGivenValueIsNegative()
-        {
-            var options = new PostgreSqlStorageOptions();
-            Assert.Throws<ArgumentException>(
-                () => options.ConnectionsCount = -1);
-        }
-
-        [Fact]
-        public void Set_ConnectionsCount_SetsTheValue()
-        {
-            var options = new PostgreSqlStorageOptions();
-            options.ConnectionsCount = 5;
-            Assert.Equal(5, options.ConnectionsCount);
         }
     }
 }

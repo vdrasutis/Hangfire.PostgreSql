@@ -5,20 +5,21 @@ using System.Globalization;
 using System.Linq;
 using Dapper;
 using Hangfire.Common;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.States;
 using Hangfire.Storage;
 using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    internal class PostgreSqlWriteOnlyTransaction : JobStorageTransaction
+    internal class WriteOnlyTransaction : JobStorageTransaction
     {
         private readonly IPersistentJobQueue _queue;
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly Queue<Action<NpgsqlConnection, NpgsqlTransaction>> _commandQueue;
 
-        public PostgreSqlWriteOnlyTransaction(
-            IPostgreSqlConnectionProvider connectionProvider,
+        public WriteOnlyTransaction(
+            IConnectionProvider connectionProvider,
             IPersistentJobQueue queue)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));

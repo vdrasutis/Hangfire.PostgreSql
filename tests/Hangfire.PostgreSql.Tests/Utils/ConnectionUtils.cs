@@ -1,37 +1,33 @@
 ﻿using System;
+using Hangfire.PostgreSql.Connectivity;
 using Npgsql;
 
 namespace Hangfire.PostgreSql.Tests.Utils
 {
     internal static class ConnectionUtils
     {
-        private const string DatabaseVariable = "Hangfire_PostgreSql_DatabaseName";
-        private const string SchemaVariable = "Hangfire_PostgreSql_SchemaName";
+        private const string ConnectionStringVariableName = "Hangfire_PostgreSql_ConnectionString";
 
-        private const string ConnectionStringTemplateVariable = "Hangfire_PostgreSql_ConnectionStringTemplate";
+        private const string DefaultConnectionString =
+            @"Server=localhost;Port=5432;Database=hangfire_tests;User Id=postgres;Password=password;Search Path=hangfire";
 
-        private const string MasterDatabaseName = "postgres";
-        private const string DefaultDatabaseName = @"hangfire_tests";
-        private const string DefaultSchemaName = @"hangfire";
+        public static string GetConnectionString() => Environment.GetEnvironmentVariable(ConnectionStringVariableName) ?? DefaultConnectionString;
 
-        private const string DefaultConnectionStringTemplate =
-            @"Server=127.0.0.1;Port=5432;Database=postgres;User Id=postgres;Password=password;Pooling=false;Search Path=hangfire";
+        private static readonly IConnectionProvider ConnectionProvider = new DefaultConnectionProvider(GetConnectionString());
 
-        private static readonly IPostgreSqlConnectionProvider ConnectionProvider = new PostgreSqlConnectionProvider(
-            GetConnectionString(),
-            new PostgreSqlStorageOptions { SchemaName = DefaultSchemaName });
+        public static string GetDatabaseName()
+        {
+            var builder = new NpgsqlConnectionStringBuilder(GetConnectionString());
+            return builder.Database;
+        }
 
-        public static string GetDatabaseName() => Environment.GetEnvironmentVariable(DatabaseVariable) ?? DefaultDatabaseName;
+        public static string GetSchemaName()
+        {
+            var builder = new NpgsqlConnectionStringBuilder(GetConnectionString());
+            return builder.SearchPath;
+        }
 
-        public static string GetSchemaName() => Environment.GetEnvironmentVariable(SchemaVariable) ?? DefaultSchemaName;
-
-        public static string GetMasterConnectionString() => string.Format(GetConnectionStringTemplate(), MasterDatabaseName);
-
-        public static string GetConnectionString() => string.Format(GetConnectionStringTemplate(), GetDatabaseName());
-
-        private static string GetConnectionStringTemplate() => Environment.GetEnvironmentVariable(ConnectionStringTemplateVariable) ?? DefaultConnectionStringTemplate;
-
-        public static IPostgreSqlConnectionProvider CreateConnection() => ConnectionProvider;
+        public static IConnectionProvider CreateConnection() => ConnectionProvider;
 
         public static NpgsqlConnection CreateNpgConnection() => new NpgsqlConnection(GetConnectionString());
     }

@@ -43,8 +43,7 @@ namespace Hangfire.PostgreSql
             {
                 using (var connectionHolder = storage.ConnectionProvider.AcquireConnection())
                 {
-                    var searchPathQuery = $"SET search_path = '{storage.Options.SchemaName}';";
-                    var metricValue = connectionHolder.Connection.ExecuteScalar(searchPathQuery + query);
+                    var metricValue = connectionHolder.Connection.ExecuteScalar(query);
                     return new Metric(metricValue?.ToString() ?? "???");
                 }
             }

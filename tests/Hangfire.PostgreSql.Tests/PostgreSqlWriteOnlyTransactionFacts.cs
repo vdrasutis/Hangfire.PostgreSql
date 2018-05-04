@@ -4,6 +4,7 @@ using System.Data;
 using System.Globalization;
 using System.Linq;
 using Dapper;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Hangfire.States;
 using Moq;
@@ -25,7 +26,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_IfConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(null, _queue.Object));
+                () => new WriteOnlyTransaction(null, _queue.Object));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
@@ -34,7 +35,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_IfQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), null));
+                () => new WriteOnlyTransaction(ConnectionUtils.CreateConnection(), null));
 
             Assert.Equal("queue", exception.ParamName);
         }
@@ -976,7 +977,7 @@ returning ""id""";
             });
         }
 
-        private void UseConnection(Action<IPostgreSqlConnectionProvider, NpgsqlConnection> action)
+        private void UseConnection(Action<IConnectionProvider, NpgsqlConnection> action)
         {
             var provider = ConnectionUtils.CreateConnection();
             using (var connection = provider.AcquireConnection())
@@ -985,9 +986,9 @@ returning ""id""";
             }
         }
 
-        private void Commit(IPostgreSqlConnectionProvider provider, Action<PostgreSqlWriteOnlyTransaction> action)
+        private void Commit(IConnectionProvider provider, Action<WriteOnlyTransaction> action)
         {
-            using (var transaction = new PostgreSqlWriteOnlyTransaction(provider, _queue.Object))
+            using (var transaction = new WriteOnlyTransaction(provider, _queue.Object))
             {
                 action(transaction);
                 transaction.Commit();

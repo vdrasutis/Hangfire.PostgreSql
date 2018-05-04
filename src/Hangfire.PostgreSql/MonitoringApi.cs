@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using Dapper;
 using Hangfire.Common;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Entities;
 using Hangfire.States;
 using Hangfire.Storage;
@@ -12,22 +13,19 @@ using Hangfire.Storage.Monitoring;
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    internal class PostgreSqlMonitoringApi : IMonitoringApi
+    internal class MonitoringApi : IMonitoringApi
     {
         private const string AscOrder = "ASC";
         private const string DescOrder = "DESC";
 
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly IPersistentJobQueueMonitoringApi _queueMonitoringApi;
-        private readonly PostgreSqlStorageOptions _options;
 
-        public PostgreSqlMonitoringApi(
-            IPostgreSqlConnectionProvider connection,
-            IPersistentJobQueueMonitoringApi queueMonitoringApi,
-            PostgreSqlStorageOptions options)
+        public MonitoringApi(
+            IConnectionProvider connection,
+            IPersistentJobQueueMonitoringApi queueMonitoringApi)
         {
             _connectionProvider = connection ?? throw new ArgumentNullException(nameof(connection));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
             _queueMonitoringApi = queueMonitoringApi ?? throw new ArgumentNullException(nameof(queueMonitoringApi));
         }
 

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Xunit;
 
@@ -21,16 +22,16 @@ namespace Hangfire.PostgreSql.Tests.Performance
             Assert.Equal(100, threads);
         }
 
-        private static int AcquireLock(IPostgreSqlConnectionProvider connectionProvider)
+        private static int AcquireLock(IConnectionProvider connectionProvider)
         {
             try
             {
-                using (var @lock = new PostgreSqlDistributedLock("hello", TimeSpan.FromSeconds(1), connectionProvider))
+                using (var @lock = new DistributedLock("hello", TimeSpan.FromSeconds(1), connectionProvider))
                 {
                     return 1;
                 }
             }
-            catch (PostgreSqlDistributedLockException e)
+            catch (DistributedLockException e)
             {
                 return 0;
             }

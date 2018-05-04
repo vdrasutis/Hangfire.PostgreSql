@@ -22,10 +22,7 @@ namespace Hangfire.PostgreSql.Tests
         public PostgreSqlConnectionFacts()
         {
             _queue = new Mock<IPersistentJobQueue>();
-            _options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
+            _options = new PostgreSqlStorageOptions();
         }
 
         [Fact]
