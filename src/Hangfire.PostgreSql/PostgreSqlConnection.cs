@@ -254,10 +254,10 @@ ORDER BY ""score"" LIMIT 1;
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
 
             var sql = $@"
-INSERT INTO ""{_options.SchemaName}"".""hash""(""key"", ""field"", ""value"")
+INSERT INTO ""{_options.SchemaName}"".hash(""key"", ""field"", ""value"")
 VALUES (@key, @field, @value)
 ON CONFLICT (""key"", ""field"")
-DO UPDATE SET ""field"" = @field
+DO UPDATE SET value = @value
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
