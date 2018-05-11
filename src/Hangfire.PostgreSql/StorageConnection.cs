@@ -251,10 +251,10 @@ ORDER BY ""score"" LIMIT 1;
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
 
             const string query = @"
-INSERT INTO ""hash""(""key"", ""field"", ""value"")
+INSERT INTO hash(key, field, value)
 VALUES (@key, @field, @value)
-ON CONFLICT (""key"", ""field"")
-DO UPDATE SET ""field"" = @field
+ON CONFLICT (key, field)
+DO UPDATE SET value = @value
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -275,9 +275,11 @@ DO UPDATE SET ""field"" = @field
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
             {
-                const string query = @"SELECT ""field"" ""Field"", ""value"" ""Value"" 
-FROM ""hash"" 
-WHERE ""key"" = @key;";
+                const string query = @"
+SELECT field Field, value Value 
+FROM hash 
+WHERE key = @key
+;";
                 var result = transaction.Connection.Query<SqlHash>(
                         query,
                         new { key = key },
@@ -302,10 +304,10 @@ WHERE ""key"" = @key;";
             };
 
             const string query = @"
-INSERT INTO ""server"" (""id"", ""data"", ""lastheartbeat"")
+INSERT INTO server (id, data, lastheartbeat)
 VALUES (@id, @data, NOW() AT TIME ZONE 'UTC')
-ON CONFLICT (""id"")
-DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
+ON CONFLICT (id)
+DO UPDATE SET data = @data, lastheartbeat = NOW() AT TIME ZONE 'UTC'
 ";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -321,7 +323,7 @@ DO UPDATE SET ""data"" = @data, ""lastheartbeat"" = NOW() AT TIME ZONE 'UTC'
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                connectionHolder.Connection.Execute(@"DELETE FROM ""server"" WHERE ""id"" = @id;", new { id = serverId });
+                connectionHolder.Connection.Execute(@"DELETE FROM server WHERE id = @id;", new { id = serverId });
             }
         }
 
@@ -367,7 +369,7 @@ WHERE id = @id;";
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"select ""value"" from ""list"" where ""key"" = @key order by ""id"" desc";
+            const string query = @"SELECT value FROM list WHERE key = @key ORDER BY id DESC";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -379,7 +381,7 @@ WHERE id = @id;";
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"select sum(s.""Value"") from (select sum(""value"") as ""Value"" from ""counter"" where ""key"" = @key) s";
+            const string query = @"select sum(s.Value) from (select sum(""value"") as ""Value"" from ""counter"" where ""key"" = @key) s";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
