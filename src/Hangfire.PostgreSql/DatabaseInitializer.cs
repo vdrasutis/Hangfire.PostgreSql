@@ -36,7 +36,8 @@ namespace Hangfire.PostgreSql
 
                 TryCreateSchema(connection);
                 var installedVersion = GetInstalledVersion(connection);
-                var availableMigrations = GetMigrations().Where(x => x.version > installedVersion).ToList();
+                var availableMigrations = GetMigrations().Where(x => x.version > installedVersion).ToArray();
+                if (availableMigrations.Length == 0) return;
 
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
