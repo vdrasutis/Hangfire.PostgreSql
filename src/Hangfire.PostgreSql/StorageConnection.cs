@@ -276,7 +276,7 @@ DO UPDATE SET value = @value
             using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
             {
                 const string query = @"
-SELECT field Field, value Value 
+SELECT field AS Field, value AS Value 
 FROM hash 
 WHERE key = @key
 ;";
@@ -381,7 +381,7 @@ WHERE id = @id;";
         {
             Guard.ThrowIfNull(key, nameof(key));
 
-            const string query = @"select sum(s.Value) from (select sum(""value"") as ""Value"" from ""counter"" where ""key"" = @key) s";
+            const string query = @"select sum(""value"") as ""Value"" from ""counter"" where ""key"" = @key";
 
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {

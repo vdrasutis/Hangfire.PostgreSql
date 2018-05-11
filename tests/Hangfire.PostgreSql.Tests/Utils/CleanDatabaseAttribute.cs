@@ -53,9 +53,13 @@ namespace Hangfire.PostgreSql.Tests.Utils
                 {
                     connection.Execute(@"CREATE DATABASE @databaseName", new { databaseName = databaseName });
                 }
+            }
 
-                DatabaseInitializer.Initialize(connection);
-                PostgreSqlTestObjectsInitializer.CleanTables(connection);
+            new DatabaseInitializer(ConnectionUtils.GetConnectionProvider(), ConnectionUtils.GetSchemaName()).Initialize();
+
+            using (var connectionHolder = provider.AcquireConnection())
+            {
+                PostgreSqlTestObjectsInitializer.CleanTables(connectionHolder.Connection);
             }
         }
 

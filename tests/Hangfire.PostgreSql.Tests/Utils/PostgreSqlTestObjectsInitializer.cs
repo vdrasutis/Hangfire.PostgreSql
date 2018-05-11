@@ -12,13 +12,9 @@ namespace Hangfire.PostgreSql.Tests.Utils
         {
             if (connection == null) throw new ArgumentNullException(nameof(connection));
 
-            string script = null;
-
-
-            script = GetStringResource(
-                    typeof(PostgreSqlTestObjectsInitializer).GetTypeInfo().Assembly,
-                    "Hangfire.PostgreSql.Tests.Clean.sql")
-                .Replace("'hangfire'", string.Format("'{0}'", ConnectionUtils.GetSchemaName()));
+            var script = GetStringResource(
+                typeof(PostgreSqlTestObjectsInitializer).GetTypeInfo().Assembly,
+                "Hangfire.PostgreSql.Tests.Clean.sql");
 
             //connection.Execute(script);
 

@@ -1,35 +1,6 @@
-﻿DO $$
-BEGIN
-    IF NOT EXISTS(
-        SELECT schema_name
-          FROM information_schema.schemata
-          WHERE schema_name = 'hangfire'
-      )
-    THEN
-      EXECUTE 'CREATE SCHEMA "hangfire";';
-    END IF;
-
-END
-$$;
-
-SET search_path = 'hangfire';
---
--- Table structure for table `Schema`
---
-
-CREATE TABLE IF NOT EXISTS "schema" (  "version" INT NOT NULL ,
+﻿CREATE TABLE IF NOT EXISTS "schema" (  "version" INT NOT NULL ,
   PRIMARY KEY ("version")
 ); 
-
-
-DO
-$$
-BEGIN
-    IF EXISTS (SELECT 1 FROM "schema" WHERE "version"::integer >= 3) THEN
-        RAISE EXCEPTION 'version-already-applied';
-    END IF;
-END
-$$;
 
 INSERT INTO "schema"("version") values('1');
 

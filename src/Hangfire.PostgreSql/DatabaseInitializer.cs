@@ -1,108 +1,135 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
-using System.Resources;
 using Dapper;
 using Hangfire.Logging;
+using Hangfire.PostgreSql.Connectivity;
 using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    internal static class DatabaseInitializer
+    internal sealed class DatabaseInitializer
     {
         private static readonly ILog Log = LogProvider.GetLogger(typeof(PostgreSqlStorage));
 
-        public static void Initialize(NpgsqlConnection connection, string schemaName = "hangfire")
-        {
-            if (connection == null)
-                throw new ArgumentNullException(nameof(connection));
+        private readonly IConnectionProvider _connectionProvider;
+        private readonly string _schemaName;
 
+        public DatabaseInitializer(IConnectionProvider connectionProvider, string schemaName)
+        {
+            _connectionProvider = connectionProvider;
+            _schemaName = schemaName;
+        }
+
+        public void Initialize()
+        {
             Log.Info("Start installing Hangfire SQL objects...");
 
-            // starts with version 3 to keep in check with Hangfire SqlServer, but I couldn't keep up with that idea after all;
-            int version = 3;
-            int previousVersion = 1;
-            do
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                try
+                var connection = connectionHolder.Connection;
+                var locked = LockDatabase(connection);
+                if (!locked) return;
+
+                TryCreateSchema(connection);
+                var installedVersion = GetInstalledVersion(connection);
+                var availableMigrations = GetMigrations().Where(x => x.version > installedVersion).ToList();
+
+                using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
-                    string script = null;
-                    try
+                    var lastMigration = default((int version, string));
+                    foreach (var migration in availableMigrations)
                     {
-                        script = GetStringResource(
-                            typeof(DatabaseInitializer).GetTypeInfo().Assembly,
-                            $"Hangfire.PostgreSql.Schema.Install.v{version.ToString(CultureInfo.InvariantCulture)}.sql");
-                    }
-                    catch (MissingManifestResourceException)
-                    {
-                        break;
+                        connection.Execute(migration.script, transaction: transaction);
+                        lastMigration = migration;
                     }
 
-                    if (schemaName != "hangfire")
-                    {
-                        script = script.Replace("'hangfire'", $"'{schemaName}'")
-                            .Replace(@"""hangfire""", $@"""{schemaName}""");
-                    }
+                    connection.Execute(
+                        @"UPDATE schema SET version = @version WHERE version = @installedVersion",
+                        new { lastMigration.version, installedVersion },
+                        transaction);
 
-                    using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
-                    using (var command = new NpgsqlCommand(script, connection, transaction))
-                    {
-                        command.CommandTimeout = 120;
-                        try
-                        {
-                            command.ExecuteNonQuery();
-
-                            // Due to https://github.com/npgsql/npgsql/issues/641 , it's not possible to send
-                            // CREATE objects and use the same object in the same command
-                            // So bump the version in another command
-                            connection.Execute(
-                                $@"UPDATE ""{
-                                        schemaName
-                                    }"".""schema"" SET ""version"" = @version WHERE ""version"" = @previousVersion",
-                                new {version, previousVersion}, transaction);
-
-                            transaction.Commit();
-                        }
-                        catch (PostgresException ex)
-                        {
-                            if ((ex.MessageText ?? "") != "version-already-applied")
-                            {
-                                throw;
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    if (ex.Source.Equals("Npgsql"))
-                    {
-                        Log.ErrorException("Error while executing install/upgrade", ex);
-                    }
+                    transaction.Commit();
                 }
 
-                previousVersion = version;
-                version++;
-            } while (true);
+                UnlockDatabase(connection);
+            }
 
             Log.Info("Hangfire SQL objects installed.");
         }
 
-        private static string GetStringResource(Assembly assembly, string resourceName)
-        {
-            using (var stream = assembly.GetManifestResourceStream(resourceName))
-            {
-                if (stream == null)
-                {
-                    throw new MissingManifestResourceException(
-                        $"Requested resource `{resourceName}` was not found in the assembly `{assembly}`.");
-                }
+        private bool LockDatabase(NpgsqlConnection connection) => connection.Query<bool>(@"SELECT pg_try_advisory_lock(12345)").Single();
 
-                using (var reader = new StreamReader(stream))
+        private void UnlockDatabase(NpgsqlConnection connection) => connection.Execute(@"SELECT pg_advisory_unlock(12345)");
+
+        private int GetInstalledVersion(NpgsqlConnection connection)
+        {
+            try
+            {
+                return connection.Query<int?>(@"SELECT version FROM schema").SingleOrDefault() ?? 1;
+            }
+            catch
+            {
+                return 1;
+            }
+        }
+
+        private void TryCreateSchema(NpgsqlConnection connection)
+        {
+            try
+            {
+                connection.Execute($@"CREATE SCHEMA {_schemaName}");
+            }
+            catch
+            {
+            }
+
+            connection.Execute($@"SET search_path={_schemaName}");
+        }
+
+        private static IEnumerable<(int version, string script)> GetMigrations()
+        {
+            var version = 3;
+
+            while (true)
+            {
+                var resourceName = $"Hangfire.PostgreSql.Schema.Install.v{version.ToString(CultureInfo.InvariantCulture)}.sql";
+                var stringResource = ReadStringResource(resourceName);
+
+                if (stringResource.hasValue)
                 {
-                    return reader.ReadToEnd();
+                    yield return (version, stringResource.value);
+                    version++;
                 }
+                else
+                {
+                    yield break;
+                }
+            }
+        }
+
+        private static (bool hasValue, string value) ReadStringResource(string resourceName)
+        {
+            var assembly = typeof(DatabaseInitializer).GetTypeInfo().Assembly;
+            try
+            {
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null) return (false, null);
+
+                    using (var reader = new StreamReader(stream))
+                    {
+                        var script = reader.ReadToEnd();
+                        return (true, script);
+                    }
+                }
+            }
+            catch
+            {
+                return (false, null);
             }
         }
     }

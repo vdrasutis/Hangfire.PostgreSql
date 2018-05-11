@@ -54,24 +54,21 @@ namespace Hangfire.PostgreSql
             _monitoringApi = new MonitoringApi(_connectionProvider);
             _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {builder.SearchPath}";
 
-            PrepareSchemaIfNecessary();
+            PrepareSchemaIfNecessary(builder.SearchPath);
         }
 
         private static IConnectionProvider CreateConnectionProvider(string connectionString, NpgsqlConnectionStringBuilder connectionStringBuilder)
         {
             return connectionStringBuilder.Pooling
                 ? new NpgsqlConnectionProvider(connectionString)
-                : (IConnectionProvider) new DefaultConnectionProvider(connectionString);
+                : (IConnectionProvider)new DefaultConnectionProvider(connectionString);
         }
 
-        private void PrepareSchemaIfNecessary()
+        private void PrepareSchemaIfNecessary(string schemaName)
         {
             if (_options.PrepareSchemaIfNecessary)
             {
-                using (var connectionHolder = _connectionProvider.AcquireConnection())
-                {
-                    DatabaseInitializer.Initialize(connectionHolder.Connection);
-                }
+                new DatabaseInitializer(_connectionProvider, schemaName).Initialize();
             }
         }
 
