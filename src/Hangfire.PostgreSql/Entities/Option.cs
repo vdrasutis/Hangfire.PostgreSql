@@ -2,7 +2,7 @@
 {
     public struct Option<T> where T : class
     {
-        public T Value;
+        public readonly T Value;
         public bool HasValue => Value != null;
 
         public Option(T value)
