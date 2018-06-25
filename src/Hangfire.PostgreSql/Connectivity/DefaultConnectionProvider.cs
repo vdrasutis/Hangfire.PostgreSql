@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Data;
+using System.Diagnostics;
 using System.Threading;
 using Hangfire.Logging;
 using Npgsql;
@@ -9,14 +10,15 @@ namespace Hangfire.PostgreSql.Connectivity
 {
     internal sealed class DefaultConnectionProvider : IConnectionProvider
     {
+        public static readonly TimeSpan DisposeTimeout = TimeSpan.FromSeconds(10);
+
         private static readonly ILog Logger = LogProvider.GetLogger(typeof(DefaultConnectionProvider));
 
         private readonly string _connectionString;
-        private readonly ConcurrentBag<NpgsqlConnection> _connectionQueue;
         private readonly ConcurrentBag<NpgsqlConnection> _connectionPool;
         private readonly Action<ConnectionHolder> _connectionDisposer;
 
-        private int _activeConnections;
+        private volatile int _activeConnections;
         private readonly int _maxConnections;
 
         public DefaultConnectionProvider(string connectionString)
@@ -24,7 +26,6 @@ namespace Hangfire.PostgreSql.Connectivity
             Guard.ThrowIfConnectionStringIsInvalid(connectionString);
 
             _connectionString = connectionString;
-            _connectionQueue = new ConcurrentBag<NpgsqlConnection>();
             _connectionPool = new ConcurrentBag<NpgsqlConnection>();
             _connectionDisposer = ReleaseConnection;
 
@@ -43,14 +44,14 @@ namespace Hangfire.PostgreSql.Connectivity
         private void ReleaseConnection(ConnectionHolder connectionHolder)
         {
             if (connectionHolder.Disposed) return;
-            _connectionQueue.Add(connectionHolder.Connection);
+            _connectionPool.Add(connectionHolder.Connection);
         }
 
         private NpgsqlConnection GetFreeConnection()
         {
             var spinWait = new SpinWait();
             NpgsqlConnection connection;
-            while (!_connectionQueue.TryTake(out connection))
+            while (!_connectionPool.TryTake(out connection))
             {
                 connection = CreateConnectionIfNeeded();
                 if (connection != null) return connection;
@@ -83,7 +84,6 @@ namespace Hangfire.PostgreSql.Connectivity
                 throw;
             }
             newConnection.StateChange += ConnectionStateChanged;
-            _connectionPool.Add(newConnection);
 
             return newConnection;
         }
@@ -99,9 +99,25 @@ namespace Hangfire.PostgreSql.Connectivity
 
         public void Dispose()
         {
-            while (_connectionPool.TryTake(out var connection))
+            /*
+             * Try to shutdown gracefully:
+             * Wait for each connection become free.
+             */
+            var stopwatch = Stopwatch.StartNew();
+            while (_activeConnections > 0)
             {
-                connection.Dispose();
+                if (_connectionPool.TryTake(out var connection))
+                {
+                    Interlocked.Decrement(ref _activeConnections);
+                    connection.Dispose();
+                }
+
+                if (stopwatch.Elapsed > DisposeTimeout && _activeConnections > 0)
+                {
+                    string message = $"Disposing of connection pool took too long.  Connections left: {_activeConnections}";
+                    Logger.Error(message);
+                    throw new TimeoutException(message);
+                }
             }
         }
     }

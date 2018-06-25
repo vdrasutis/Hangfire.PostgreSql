@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Xunit;
@@ -50,14 +51,19 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         [Fact]
-        public void Dtor_ReleasesConnections()
+        public void Dispose_ReleasesConnections()
         {
             var connectionsCount = 10;
             var provider = CreateProvider();
 
             for (var i = 0; i < connectionsCount; i++)
             {
-                provider.AcquireConnection();
+                var connection = provider.AcquireConnection();
+                Task.Run(async () =>
+                {
+                    await Task.Delay(3000);
+                    connection.Dispose();
+                });
             }
 
             provider.Dispose();
@@ -65,9 +71,23 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(0, provider.ActiveConnections);
         }
 
-        private static DefaultConnectionProvider CreateProvider()
+        [Fact]
+        public void Dispose_ThrowsTimeoutException_WhenConnectionsAreNotDisposedForTooLong()
         {
-            return new DefaultConnectionProvider(ConnectionUtils.GetConnectionString());
+            var provider = CreateProvider();
+
+            Assert.Throws<TimeoutException>(() =>
+            {
+                var connection = provider.AcquireConnection();
+                Task.Run(async () =>
+                {
+                    await Task.Delay(DefaultConnectionProvider.DisposeTimeout + TimeSpan.FromSeconds(1));
+                    connection.Dispose();
+                });
+                provider.Dispose();
+            });
         }
+
+        private static DefaultConnectionProvider CreateProvider() => new DefaultConnectionProvider(ConnectionUtils.GetConnectionString());
     }
 }

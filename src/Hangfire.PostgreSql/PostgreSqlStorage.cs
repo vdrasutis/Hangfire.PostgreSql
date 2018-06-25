@@ -102,7 +102,7 @@ namespace Hangfire.PostgreSql
 
         public void Dispose()
         {
-            //_connectionProvider.Dispose();
+            _connectionProvider.Dispose();
         }
     }
 }
