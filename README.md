@@ -6,9 +6,14 @@ Hangfire.PostgreSql
 [![GitHub license](https://img.shields.io/badge/license-LGPL-blue.svg?style=flat)](https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/COPYING)
 [![Twitter](https://img.shields.io/twitter/url/https/twitter.com/ahydrax.svg?style=social)](https://twitter.com/intent/tweet?text=Wow:&url=%5Bobject%20Object%5D)
 
-This is an plugin to the Hangfire to enable PostgreSQL as a storage system.
+This is a plugin for Hangfire to enable PostgreSQL as a storage system.
 Read about hangfire here: https://github.com/HangfireIO/Hangfire#hangfire-
 and here: http://hangfire.io/
+
+Requirements
+------------
+* .NET Framework: `.>=NET 4.5.2` or `>=.NET Standard 1.3`
+* PostgreSql: `>=9.6`
 
 Instructions
 ------------
@@ -22,7 +27,7 @@ app.UseHangfireServer(new BackgroundJobServerOptions(),
 app.UseHangfireDashboard();
 ```
 
-Add metrics to Hangfire.Dashboard
+Additional metrics for Hangfire.Dashboard
 -----------------
 There are 6 different metrics you can use:
 
@@ -40,16 +45,14 @@ GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.
 Backward compatibility with original project
 -----------------
 * Minimum required PostgreSQL version is 9.6
-* Number of connections are limited now using ```PostgreSqlStorageOptions.ConnectionsCount``` setting;
-* ```PostgreSqlStorageOptions.SchemaName``` is deprecated. Consider using ```SearchPath``` in your connection string.
-* Connection string must be passed directly to constructor or bootstrapper method (it is no longer available to pass connection string name stored in ```app.config```;
-* Constructor with existing ```NpgsqlConnection``` is no longer available;
-* ```NpgsqlConnection``` pooling is not used now (used own pooling mechanism);
+* `PostgreSqlStorageOptions.SchemaName` is removed. Consider using `SearchPath` in your connection string.
+* Connection string must be passed directly to constructor or bootstrapper method (it is no longer available to pass connection string name stored in ```app.config```);
+* Constructor with existing `NpgsqlConnection` is no longer available;
 * Removed parameter UseNativeDatabaseTransactions (transactions are used where needed and it can't be turned off);
 * Anything else I've already forgotten.
 
 
-Related Projects
+Related links
 -----------------
 
 * [Hangfire.Core](https://github.com/HangfireIO/Hangfire)
