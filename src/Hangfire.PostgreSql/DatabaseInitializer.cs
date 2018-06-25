@@ -7,6 +7,7 @@ using System.Reflection;
 using Dapper;
 using Hangfire.Logging;
 using Hangfire.PostgreSql.Connectivity;
+using Hangfire.PostgreSql.Entities;
 using Npgsql;
 
 namespace Hangfire.PostgreSql
@@ -36,21 +37,21 @@ namespace Hangfire.PostgreSql
 
                 TryCreateSchema(connection);
                 var installedVersion = GetInstalledVersion(connection);
-                var availableMigrations = GetMigrations().Where(x => x.version > installedVersion).ToArray();
+                var availableMigrations = GetMigrations().Where(x => x.Version > installedVersion).ToArray();
                 if (availableMigrations.Length == 0) return;
 
                 using (var transaction = connection.BeginTransaction(IsolationLevel.Serializable))
                 {
-                    var lastMigration = default((int version, string));
+                    var lastMigration = default(MigrationInfo);
                     foreach (var migration in availableMigrations)
                     {
-                        connection.Execute(migration.script, transaction: transaction);
+                        connection.Execute(migration.Script, transaction: transaction);
                         lastMigration = migration;
                     }
 
                     connection.Execute(
                         @"UPDATE schema SET version = @version WHERE version = @installedVersion",
-                        new { lastMigration.version, installedVersion },
+                        new { lastMigration.Version, installedVersion },
                         transaction);
 
                     transaction.Commit();
@@ -91,7 +92,7 @@ namespace Hangfire.PostgreSql
             connection.Execute($@"SET search_path={_schemaName}");
         }
 
-        private static IEnumerable<(int version, string script)> GetMigrations()
+        private static IEnumerable<MigrationInfo> GetMigrations()
         {
             var version = 3;
 
@@ -100,9 +101,9 @@ namespace Hangfire.PostgreSql
                 var resourceName = $"Hangfire.PostgreSql.Schema.Install.v{version.ToString(CultureInfo.InvariantCulture)}.sql";
                 var stringResource = ReadStringResource(resourceName);
 
-                if (stringResource.hasValue)
+                if (stringResource.HasValue)
                 {
-                    yield return (version, stringResource.value);
+                    yield return new MigrationInfo { Version = version, Script = stringResource.Value };
                     version++;
                 }
                 else
@@ -112,25 +113,25 @@ namespace Hangfire.PostgreSql
             }
         }
 
-        private static (bool hasValue, string value) ReadStringResource(string resourceName)
+        private static Option<string> ReadStringResource(string resourceName)
         {
             var assembly = typeof(DatabaseInitializer).GetTypeInfo().Assembly;
             try
             {
                 using (var stream = assembly.GetManifestResourceStream(resourceName))
                 {
-                    if (stream == null) return (false, null);
+                    if (stream == null) return default(Option<string>);
 
                     using (var reader = new StreamReader(stream))
                     {
-                        var script = reader.ReadToEnd();
-                        return (true, script);
+                        var value = reader.ReadToEnd();
+                        return new Option<string>(value);
                     }
                 }
             }
             catch
             {
-                return (false, null);
+                return default(Option<string>);
             }
         }
     }

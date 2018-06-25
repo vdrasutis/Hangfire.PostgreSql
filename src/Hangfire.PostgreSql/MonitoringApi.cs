@@ -30,10 +30,35 @@ namespace Hangfire.PostgreSql
             => GetNumberOfJobsByStateName(ScheduledState.StateName);
 
         public long EnqueuedCount(string queue)
-            => GetEnqueuedAndFetchedCount(queue).enqueued ?? 0;
+        {
+            const string query = @"
+SELECT COUNT(*) 
+FROM jobqueue 
+WHERE fetchedat IS NULL 
+AND queue = @queue
+";
+            return GetLong(queue, query);
+        }
 
         public long FetchedCount(string queue)
-            => GetEnqueuedAndFetchedCount(queue).fetched ?? 0;
+        {
+            const string query = @"
+SELECT COUNT(*) 
+FROM jobqueue 
+WHERE fetchedat IS NOT NULL 
+AND queue = @queue
+";
+            return GetLong(queue, query);
+        }
+
+        private long GetLong(string queue, string query)
+        {
+            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            {
+                var result = connectionHolder.Connection.ExecuteScalar<long>(query, new { queue = queue });
+                return result;
+            }
+        }
 
         public long FailedCount()
             => GetNumberOfJobsByStateName(FailedState.StateName);
@@ -145,8 +170,8 @@ namespace Hangfire.PostgreSql
                 queueInfos.Add(new QueueWithTopEnqueuedJobsDto
                 {
                     Name = queue,
-                    Length = counters.enqueued ?? 0,
-                    Fetched = counters.fetched ?? 0,
+                    Length = counters.Enqueued,
+                    Fetched = counters.Fetched,
                     FirstJobs = firstJobs
                 });
             }
@@ -436,27 +461,26 @@ AND jq.fetchedat {fetchCondition}
 AND s.name = '{stateName}'
 LIMIT {perPage} OFFSET {from};";
 
-        public (long? enqueued, long? fetched) GetEnqueuedAndFetchedCount(string queue)
+        private EnqueuedAndFetchedJobsCount GetEnqueuedAndFetchedCount(string queue)
         {
             const string query = @"
 SELECT (
         SELECT COUNT(*) 
-        FROM ""jobqueue"" 
-        WHERE ""fetchedat"" IS NULL 
-        AND ""queue"" = @queue
-    ) ""EnqueuedCount"", 
+        FROM jobqueue 
+        WHERE fetchedat IS NULL 
+        AND queue = @queue
+    ) AS Enqueued, 
     (
         SELECT COUNT(*) 
-        FROM ""jobqueue"" 
-        WHERE ""fetchedat"" IS NOT NULL 
-        AND ""queue"" = @queue
-    ) ""FetchedCount"";
+        FROM jobqueue 
+        WHERE fetchedat IS NOT NULL 
+        AND queue = @queue
+    ) AS Fetched;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                var result = connectionHolder.Connection.Query(query, new { queue = queue }).Single();
-
-                return (result.EnqueuedCount, result.FetchedCount);
+                var result = connectionHolder.Connection.Query<EnqueuedAndFetchedJobsCount>(query, new { queue = queue }).Single();
+                return result;
             }
         }
     }
