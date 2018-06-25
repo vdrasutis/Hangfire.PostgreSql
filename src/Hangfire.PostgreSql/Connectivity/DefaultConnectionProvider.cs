@@ -14,6 +14,7 @@ namespace Hangfire.PostgreSql.Connectivity
         private readonly string _connectionString;
         private readonly ConcurrentBag<NpgsqlConnection> _connectionQueue;
         private readonly ConcurrentBag<NpgsqlConnection> _connectionPool;
+        private readonly Action<ConnectionHolder> _connectionDisposer;
 
         private int _activeConnections;
         private readonly int _maxConnections;
@@ -25,6 +26,7 @@ namespace Hangfire.PostgreSql.Connectivity
             _connectionString = connectionString;
             _connectionQueue = new ConcurrentBag<NpgsqlConnection>();
             _connectionPool = new ConcurrentBag<NpgsqlConnection>();
+            _connectionDisposer = ReleaseConnection;
 
             var connectionStringBuilder = new NpgsqlConnectionStringBuilder(_connectionString);
             _maxConnections = connectionStringBuilder.MaxPoolSize;
@@ -35,7 +37,7 @@ namespace Hangfire.PostgreSql.Connectivity
         public ConnectionHolder AcquireConnection()
         {
             var connection = GetFreeConnection();
-            return new ConnectionHolder(connection, ReleaseConnection);
+            return new ConnectionHolder(connection, _connectionDisposer);
         }
 
         private void ReleaseConnection(ConnectionHolder connectionHolder)
