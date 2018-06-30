@@ -2,9 +2,9 @@
 Hangfire.PostgreSql
 ===================
 [![Build status](https://ci.appveyor.com/api/projects/status/n05446uxa1f5sjw3?svg=true)](https://ci.appveyor.com/project/ahydrax/hangfire-postgresql)
+[![Code quality](https://sonarcloud.io/api/project_badges/measure?project=Hangfire.PostgreSql.ahydrax&metric=alert_status)](https://sonarcloud.io/dashboard?id=Hangfire.PostgreSql.ahydrax)
 [![NuGet](https://img.shields.io/nuget/v/Hangfire.PostgreSql.ahydrax.svg)](https://www.nuget.org/packages/Hangfire.PostgreSql.ahydrax/)
 [![GitHub license](https://img.shields.io/badge/license-LGPL-blue.svg?style=flat)](https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/COPYING)
-[![Twitter](https://img.shields.io/twitter/url/https/twitter.com/ahydrax.svg?style=social)](https://twitter.com/intent/tweet?text=Wow:&url=%5Bobject%20Object%5D)
 
 This is a plugin for Hangfire to enable PostgreSQL as a storage system.
 Read about hangfire here: https://github.com/HangfireIO/Hangfire#hangfire-
@@ -12,7 +12,7 @@ and here: http://hangfire.io/
 
 Requirements
 ------------
-* .NET Framework: `.>=NET 4.5.2` or `>=.NET Standard 1.3`
+* .NET Framework: `.>=NET 4.5.2` or `>=.NET Standard 1.6`
 * PostgreSql: `>=9.6`
 
 Instructions
