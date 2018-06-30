@@ -31,7 +31,7 @@ namespace Hangfire.PostgreSql.Tests.Performance
                     return 1;
                 }
             }
-            catch (DistributedLockException e)
+            catch (DistributedLockException)
             {
                 return 0;
             }

@@ -7,7 +7,7 @@ using Hangfire.PostgreSql.Connectivity;
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    internal class DistributedLock : IDisposable
+    internal sealed class DistributedLock : IDisposable
     {
         private static readonly ThreadLocal<Random> Random = new ThreadLocal<Random>(() => new Random());
 

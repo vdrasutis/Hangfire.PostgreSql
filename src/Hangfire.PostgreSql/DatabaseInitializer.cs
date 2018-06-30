@@ -87,6 +87,7 @@ namespace Hangfire.PostgreSql
             }
             catch
             {
+                // Already created
             }
 
             connection.Execute($@"SET search_path={_schemaName}");

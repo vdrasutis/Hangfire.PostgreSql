@@ -11,10 +11,9 @@ using Hangfire.PostgreSql.Entities;
 using Hangfire.Server;
 using Hangfire.Storage;
 
-// ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    internal class StorageConnection : IStorageConnection
+    internal sealed class StorageConnection : IStorageConnection
     {
         private readonly IConnectionProvider _connectionProvider;
         private readonly IJobQueue _queue;
@@ -48,7 +47,7 @@ namespace Hangfire.PostgreSql
         }
 
         public string CreateExpiredJob(
-            Common.Job job,
+            Job job,
             IDictionary<string, string> parameters,
             DateTime createdAt,
             TimeSpan expireIn)
@@ -128,7 +127,7 @@ WHERE ""id"" = @id;
             var invocationData = JobHelper.FromJson<InvocationData>(jobData.InvocationData);
             invocationData.Arguments = jobData.Arguments;
 
-            Common.Job job = null;
+            Job job = null;
             JobLoadException loadException = null;
 
             try
@@ -511,6 +510,7 @@ where s.row_num between @startingFrom and @endingAt";
 
         public void Dispose()
         {
+            // Nothing to dispose
         }
     }
 }

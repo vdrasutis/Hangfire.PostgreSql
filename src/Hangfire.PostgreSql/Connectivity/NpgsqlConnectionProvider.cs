@@ -20,6 +20,7 @@ namespace Hangfire.PostgreSql.Connectivity
 
         public void Dispose()
         {
+            // Npgsql will handle disposing of internal pool by itself
         }
     }
 }
