@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using Dapper;
 using Hangfire.PostgreSql.Connectivity;
+using Hangfire.Storage;
 
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
@@ -50,7 +51,7 @@ ON CONFLICT (resource) DO NOTHING
                 }
             } while (IsNotTimeouted(lockAcquiringWatch.Elapsed, ref sleepTime));
 
-            throw new DistributedLockException(
+            throw new DistributedLockTimeoutException(
                 $"Could not place a lock on the resource \'{_resource}\': Lock timeout.");
         }
 
