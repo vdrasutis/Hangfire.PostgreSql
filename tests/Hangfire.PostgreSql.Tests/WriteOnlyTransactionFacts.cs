@@ -13,11 +13,11 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlWriteOnlyTransactionFacts
+    public class WriteOnlyTransactionFacts
     {
         private readonly Mock<IJobQueue> _queue;
 
-        public PostgreSqlWriteOnlyTransactionFacts()
+        public WriteOnlyTransactionFacts()
         {
             _queue = new Mock<IJobQueue>();
         }

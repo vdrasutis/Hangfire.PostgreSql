@@ -6,7 +6,7 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlConnectionProviderFacts
+    public class ConnectionProviderFacts
     {
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionStringIsNull()

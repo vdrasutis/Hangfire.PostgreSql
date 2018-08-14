@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Hangfire.Storage;
@@ -37,6 +39,27 @@ namespace Hangfire.PostgreSql.Tests.Performance
             {
                 return 0;
             }
+        }
+
+        [Fact(Skip = "Might be unstable"), CleanDatabase]
+        public void Ctor_ActuallyGrantsExclusiveLock()
+        {
+            const int numberOfParallelJobs = 1000;
+            var connectionProvider = ConnectionUtils.GetConnectionProvider();
+            var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = numberOfParallelJobs };
+            var i = 0;
+
+            Parallel.For(0, numberOfParallelJobs, parallelOptions, _ =>
+            {
+                using (new DistributedLock("increment_test", TimeSpan.FromSeconds(1), connectionProvider))
+                {
+                    // prevent compiler/jit from reordering
+                    var temp = Volatile.Read(ref i);
+                    Volatile.Write(ref i, temp + 1);
+                }
+            });
+
+            Assert.Equal(numberOfParallelJobs, i);
         }
     }
 }

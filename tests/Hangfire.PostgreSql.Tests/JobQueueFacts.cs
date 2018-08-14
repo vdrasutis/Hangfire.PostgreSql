@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlJobQueueFacts
+    public class JobQueueFacts
     {
         private static readonly string[] DefaultQueues = { "default" };
 

@@ -14,12 +14,12 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlConnectionFacts
+    public class StorageConnectionFacts
     {
         private readonly Mock<IJobQueue> _queue;
         private readonly PostgreSqlStorageOptions _options;
 
-        public PostgreSqlConnectionFacts()
+        public StorageConnectionFacts()
         {
             _queue = new Mock<IJobQueue>();
             _options = new PostgreSqlStorageOptions();

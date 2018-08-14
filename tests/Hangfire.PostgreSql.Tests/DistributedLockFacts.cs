@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlDistributedLockFacts
+    public class DistributedLockFacts
     {
         private readonly TimeSpan _timeout = TimeSpan.FromSeconds(5);
 
@@ -91,28 +91,6 @@ namespace Hangfire.PostgreSql.Tests
 
                 Assert.Equal(0, lockCount);
             });
-        }
-
-        [Fact(Skip = "Might be unstable")]
-        public void Ctor_ActuallyGrantsExclusiveLock()
-        {
-            const int numberOfParallelJobs = 1000;
-            var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = numberOfParallelJobs };
-            var i = 0;
-
-            Parallel.For(0, numberOfParallelJobs, parallelOptions, _ => UseConnection(
-                   (connProv, conn) =>
-                   {
-                       using (new DistributedLock("increment_test", TimeSpan.FromSeconds(1), connProv))
-                       {
-                           // prevent compiler/jit from reordering
-                           var temp = Volatile.Read(ref i);
-                           Volatile.Write(ref i, temp + 1);
-                       }
-                   }
-                   ));
-
-            Assert.Equal(numberOfParallelJobs, i);
         }
 
         private void UseConnection(Action<IConnectionProvider, NpgsqlConnection> action)
