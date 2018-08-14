@@ -51,8 +51,7 @@ ON CONFLICT (resource) DO NOTHING
                 }
             } while (IsNotTimeouted(lockAcquiringWatch.Elapsed, ref sleepTime));
 
-            throw new DistributedLockTimeoutException(
-                $"Could not place a lock on the resource \'{_resource}\': Lock timeout.");
+            throw new DistributedLockTimeoutException(_resource);
         }
 
         private bool IsNotTimeouted(TimeSpan elapsed, ref int sleepTime)

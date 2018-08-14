@@ -2,6 +2,7 @@
 using System.Linq;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
+using Hangfire.Storage;
 using Xunit;
 
 namespace Hangfire.PostgreSql.Tests.Performance
@@ -16,6 +17,7 @@ namespace Hangfire.PostgreSql.Tests.Performance
             var threads = Enumerable.Range(1, 100).AsParallel()
                 .WithDegreeOfParallelism(100)
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
+                .AsUnordered()
                 .Select(x => AcquireLock(connectionProvider))
                 .Sum();
 
@@ -31,7 +33,7 @@ namespace Hangfire.PostgreSql.Tests.Performance
                     return 1;
                 }
             }
-            catch (DistributedLockException)
+            catch (DistributedLockTimeoutException)
             {
                 return 0;
             }
