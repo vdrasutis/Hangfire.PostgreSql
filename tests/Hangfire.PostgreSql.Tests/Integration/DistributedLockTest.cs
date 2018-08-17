@@ -11,19 +11,20 @@ namespace Hangfire.PostgreSql.Tests.Performance
 {
     public class DistributedLockTest
     {
-        [Fact(Skip = "Use only for profiling/benchmarking. Not stable"), CleanDatabase]
+        [Fact(Skip = "Run only local."), CleanDatabase]
         public void Perf_AcquiringLock()
         {
+            const int concurrentQueries = 1000;
             var connectionProvider = ConnectionUtils.GetConnectionProvider();
 
-            var threads = Enumerable.Range(1, 100).AsParallel()
-                .WithDegreeOfParallelism(100)
+            var threads = Enumerable.Range(1, concurrentQueries).AsParallel()
+                .WithDegreeOfParallelism(Math.Min(concurrentQueries, 511)) // 511 is max for that method
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
                 .AsUnordered()
                 .Select(x => AcquireLock(connectionProvider))
                 .Sum();
 
-            Assert.Equal(100, threads);
+            Assert.Equal(concurrentQueries, threads);
         }
 
         private static int AcquireLock(IConnectionProvider connectionProvider)
@@ -41,7 +42,7 @@ namespace Hangfire.PostgreSql.Tests.Performance
             }
         }
 
-        [Fact(Skip = "Might be unstable"), CleanDatabase]
+        [Fact(Skip = "Run only local."), CleanDatabase]
         public void Ctor_ActuallyGrantsExclusiveLock()
         {
             const int numberOfParallelJobs = 1000;
