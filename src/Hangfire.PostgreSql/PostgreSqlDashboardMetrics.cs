@@ -36,7 +36,7 @@ namespace Hangfire.PostgreSql
         public static readonly DashboardMetric PostgreSqlServerVersion = new DashboardMetric(
             "pg:version",
             "PostgreSql Version",
-            page => Execute(page, x => new Metric(x.PostgreSqlVersion.ToString()) { Style = MetricStyle.Info }, UndefinedMetric));
+            page => Execute(page, x => new Metric(x.PostgreSqlVersion.ToString()), UndefinedMetric));
 
         [PublicAPI]
         public static readonly DashboardMetric CacheHitsPerRead = new DashboardMetric(
