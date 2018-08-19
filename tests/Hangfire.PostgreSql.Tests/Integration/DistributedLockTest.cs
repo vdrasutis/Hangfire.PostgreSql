@@ -7,51 +7,61 @@ using Hangfire.PostgreSql.Tests.Utils;
 using Hangfire.Storage;
 using Xunit;
 
-namespace Hangfire.PostgreSql.Tests.Performance
+namespace Hangfire.PostgreSql.Tests.Integration
 {
     public class DistributedLockTest
     {
         [Fact, CleanDatabase]
         [Trait("Category","Integration")]
-        public void Perf_AcquiringLock_Same()
+        public void Perf_AcquiringLock_SameResource()
         {
-            const int concurrentQueries = 1000;
             var connectionProvider = ConnectionUtils.GetConnectionProvider();
-
-            var threads = Enumerable.Range(1, concurrentQueries)
-                .AsParallel()
-                .WithDegreeOfParallelism(Math.Min(concurrentQueries, 511)) // 511 is max for that method
-                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
-                .AsUnordered()
-                .Select(x => AcquireLock("hello", connectionProvider))
-                .Sum();
+            var lockTimeout = TimeSpan.FromMilliseconds(1000);
+            const int concurrentQueries = 1000;
+            
+            var threads = RunConcurrent(concurrentQueries,
+                lockTimeout,
+                connectionProvider,
+                x => "oneLockToRuleThemAll");
 
             Assert.Equal(concurrentQueries, threads);
         }
         
         [Fact, CleanDatabase]
         [Trait("Category","Integration")]
-        public void Perf_AcquiringLock_Different()
+        public void Perf_AcquiringLock_DifferentResources()
         {
-            const int concurrentQueries = 1000;
             var connectionProvider = ConnectionUtils.GetConnectionProvider();
+            var lockTimeout = TimeSpan.Zero;
+            const int concurrentQueries = 1000;
 
-            var threads = Enumerable.Range(1, concurrentQueries)
+            var successFullThreads = RunConcurrent(concurrentQueries,
+                lockTimeout,
+                connectionProvider,
+                x => x.ToString());
+
+            Assert.Equal(concurrentQueries, successFullThreads);
+        }
+
+        private static int RunConcurrent(int concurrentQueries,
+            TimeSpan lockTimeout,
+            IConnectionProvider connectionProvider,
+            Func<int, string> lockNameSelector)
+        {
+            return Enumerable.Range(1, concurrentQueries)
                 .AsParallel()
                 .WithDegreeOfParallelism(Math.Min(concurrentQueries, 511)) // 511 is max for that method
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
                 .AsUnordered()
-                .Select(x => AcquireLock(x.ToString(), connectionProvider))
+                .Select(x => AcquireLock(lockNameSelector(x), lockTimeout, connectionProvider))
                 .Sum();
-
-            Assert.Equal(concurrentQueries, threads);
         }
 
-        private static int AcquireLock(string resourceName, IConnectionProvider connectionProvider)
+        private static int AcquireLock(string resourceName, TimeSpan lockTimeout, IConnectionProvider connectionProvider)
         {
             try
             {
-                using (var @lock = new DistributedLock(resourceName, TimeSpan.FromSeconds(1), connectionProvider))
+                using (new DistributedLock(resourceName, lockTimeout, connectionProvider))
                 {
                     return 1;
                 }
