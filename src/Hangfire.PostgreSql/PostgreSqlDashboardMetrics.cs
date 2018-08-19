@@ -6,39 +6,45 @@ using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    [PublicAPI]
     public static class PostgreSqlDashboardMetrics
     {
+        [PublicAPI]
         public static readonly DashboardMetric MaxConnections = new DashboardMetric(
             "pg:connections:max",
             "Max Connections",
             page => GetMetricByQuery<long>(page, @"SHOW max_connections;"));
 
+        [PublicAPI]
         public static readonly DashboardMetric ActiveConnections = new DashboardMetric(
             "pg:connections:active",
             "Active Connections",
             page => GetMetricByQuery<long>(page, @"SELECT numbackends from pg_stat_database WHERE datname = current_database();"));
 
+        [PublicAPI]
         public static readonly DashboardMetric PostgreSqlLocksCount = new DashboardMetric(
             "pg:locks:count",
             "PostgreSql Locks",
             page => GetMetricByQuery<long>(page, @"SELECT COUNT(*) FROM pg_locks;"));
 
+        [PublicAPI]
         public static readonly DashboardMetric DistributedLocksCount = new DashboardMetric(
             "app:locks:count",
             "Distributed Locks",
             page => GetMetricByQuery<long>(page, @"SELECT COUNT(*) FROM lock;"));
 
+        [PublicAPI]
         public static readonly DashboardMetric PostgreSqlServerVersion = new DashboardMetric(
             "pg:version",
             "PostgreSql Version",
-            page => Execute(page, x => new Metric(x.PostgreSqlVersion.ToString(3)) { Style = MetricStyle.Info }, UndefinedMetric));
+            page => Execute(page, x => new Metric(x.PostgreSqlVersion.ToString()) { Style = MetricStyle.Info }, UndefinedMetric));
 
+        [PublicAPI]
         public static readonly DashboardMetric CacheHitsPerRead = new DashboardMetric(
             "pg:cache:hitratio",
             "Cache Hits Per Read",
             page => GetMetricByQuery<long>(page, @"SELECT ROUND(SUM(blks_hit) / SUM(blks_read)) FROM pg_stat_database;"));
 
+        [PublicAPI]
         public static readonly DashboardMetric ConnectionUsageRatio = new DashboardMetric(
             "pg:connections:ratio",
             "Connections usage",
