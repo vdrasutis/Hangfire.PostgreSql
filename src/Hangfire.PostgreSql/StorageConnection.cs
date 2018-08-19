@@ -13,7 +13,7 @@ using Hangfire.Storage;
 
 namespace Hangfire.PostgreSql
 {
-    internal sealed class StorageConnection : IStorageConnection
+    internal sealed class StorageConnection : JobStorageConnection
     {
         private readonly IConnectionProvider _connectionProvider;
         private readonly IJobQueue _queue;
@@ -31,22 +31,22 @@ namespace Hangfire.PostgreSql
             _queue = queue;
         }
 
-        public IWriteOnlyTransaction CreateWriteTransaction()
+        public override IWriteOnlyTransaction CreateWriteTransaction()
             => new WriteOnlyTransaction(_connectionProvider, _queue);
 
-        public IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
+        public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
             => new DistributedLock(
                 "hangfire:" + resource,
                 timeout,
                 _connectionProvider);
 
-        public IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
+        public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
         {
             if (queues == null || queues.Length == 0) throw new ArgumentNullException(nameof(queues));
             return _queue.Dequeue(queues, cancellationToken);
         }
 
-        public string CreateExpiredJob(
+        public override string CreateExpiredJob(
             Job job,
             IDictionary<string, string> parameters,
             DateTime createdAt,
@@ -103,7 +103,7 @@ VALUES (@jobId, @name, @value);
             return jobId.ToString(CultureInfo.InvariantCulture);
         }
 
-        public JobData GetJobData(string jobId)
+        public override JobData GetJobData(string jobId)
         {
             Guard.ThrowIfNull(jobId, nameof(jobId));
 
@@ -148,7 +148,7 @@ WHERE ""id"" = @id;
             };
         }
 
-        public StateData GetStateData(string jobId)
+        public override StateData GetStateData(string jobId)
         {
             Guard.ThrowIfNull(jobId, nameof(jobId));
 
@@ -177,7 +177,7 @@ WHERE j.id = @jobId;
             };
         }
 
-        public void SetJobParameter(string id, string name, string value)
+        public override void SetJobParameter(string id, string name, string value)
         {
             Guard.ThrowIfNull(id, nameof(id));
             Guard.ThrowIfNull(name, nameof(name));
@@ -196,7 +196,7 @@ DO UPDATE SET ""value"" = @value
             }
         }
 
-        public string GetJobParameter(string id, string name)
+        public override string GetJobParameter(string id, string name)
         {
             Guard.ThrowIfNull(id, nameof(id));
             Guard.ThrowIfNull(name, nameof(name));
@@ -210,7 +210,7 @@ DO UPDATE SET ""value"" = @value
             }
         }
 
-        public HashSet<string> GetAllItemsFromSet(string key)
+        public override HashSet<string> GetAllItemsFromSet(string key)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
@@ -223,7 +223,7 @@ DO UPDATE SET ""value"" = @value
             }
         }
 
-        public string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
+        public override string GetFirstByLowestScoreFromSet(string key, double fromScore, double toScore)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (toScore < fromScore)
@@ -244,7 +244,7 @@ ORDER BY ""score"" LIMIT 1;
             }
         }
 
-        public void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
+        public override void SetRangeInHash(string key, IEnumerable<KeyValuePair<string, string>> keyValuePairs)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
             if (keyValuePairs == null) throw new ArgumentNullException(nameof(keyValuePairs));
@@ -267,7 +267,7 @@ DO UPDATE SET value = @value
             }
         }
 
-        public Dictionary<string, string> GetAllEntriesFromHash(string key)
+        public override Dictionary<string, string> GetAllEntriesFromHash(string key)
         {
             if (key == null) throw new ArgumentNullException(nameof(key));
 
@@ -290,7 +290,7 @@ WHERE key = @key
             }
         }
 
-        public void AnnounceServer(string serverId, ServerContext context)
+        public override void AnnounceServer(string serverId, ServerContext context)
         {
             Guard.ThrowIfNull(serverId, nameof(serverId));
             Guard.ThrowIfNull(context, nameof(context));
@@ -316,7 +316,7 @@ DO UPDATE SET data = @data, lastheartbeat = NOW() AT TIME ZONE 'UTC'
             }
         }
 
-        public void RemoveServer(string serverId)
+        public override void RemoveServer(string serverId)
         {
             Guard.ThrowIfNull(serverId, nameof(serverId));
 
@@ -326,7 +326,7 @@ DO UPDATE SET data = @data, lastheartbeat = NOW() AT TIME ZONE 'UTC'
             }
         }
 
-        public void Heartbeat(string serverId)
+        public override void Heartbeat(string serverId)
         {
             Guard.ThrowIfNull(serverId, nameof(serverId));
 
@@ -341,7 +341,7 @@ WHERE id = @id;";
             }
         }
 
-        public int RemoveTimedOutServers(TimeSpan timeOut)
+        public override int RemoveTimedOutServers(TimeSpan timeOut)
         {
             Guard.ThrowIfValueIsNotPositive(timeOut, nameof(timeOut));
 
@@ -352,7 +352,7 @@ WHERE id = @id;";
             }
         }
 
-        public long GetSetCount(string key)
+        public override long GetSetCount(string key)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -364,7 +364,7 @@ WHERE id = @id;";
             }
         }
 
-        public List<string> GetAllItemsFromList(string key)
+        public override List<string> GetAllItemsFromList(string key)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -376,7 +376,7 @@ WHERE id = @id;";
             }
         }
 
-        public long GetCounter(string key)
+        public override long GetCounter(string key)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -388,7 +388,7 @@ WHERE id = @id;";
             }
         }
 
-        public long GetListCount(string key)
+        public override long GetListCount(string key)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -400,7 +400,7 @@ WHERE id = @id;";
             }
         }
 
-        public TimeSpan GetListTtl(string key)
+        public override TimeSpan GetListTtl(string key)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -414,7 +414,7 @@ WHERE id = @id;";
             }
         }
 
-        public List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
+        public override List<string> GetRangeFromList(string key, int startingFrom, int endingAt)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -433,7 +433,7 @@ where s.row_num between @startingFrom and @endingAt";
             }
         }
 
-        public long GetHashCount(string key)
+        public override long GetHashCount(string key)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -445,7 +445,7 @@ where s.row_num between @startingFrom and @endingAt";
             }
         }
 
-        public TimeSpan GetHashTtl(string key)
+        public override TimeSpan GetHashTtl(string key)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -460,7 +460,7 @@ where s.row_num between @startingFrom and @endingAt";
             }
         }
 
-        public List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
+        public override List<string> GetRangeFromSet(string key, int startingFrom, int endingAt)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -480,7 +480,7 @@ where s.row_num between @startingFrom and @endingAt";
             }
         }
 
-        public TimeSpan GetSetTtl(string key)
+        public override TimeSpan GetSetTtl(string key)
         {
             Guard.ThrowIfNull(key, nameof(key));
 
@@ -495,7 +495,7 @@ where s.row_num between @startingFrom and @endingAt";
             }
         }
 
-        public string GetValueFromHash(string key, string name)
+        public override string GetValueFromHash(string key, string name)
         {
             Guard.ThrowIfNull(key, nameof(key));
             Guard.ThrowIfNull(name, nameof(name));
@@ -506,11 +506,6 @@ where s.row_num between @startingFrom and @endingAt";
             {
                 return connectionHolder.Connection.Query<string>(query, new { key, field = name }).SingleOrDefault();
             }
-        }
-
-        public void Dispose()
-        {
-            // Nothing to dispose
         }
     }
 }
