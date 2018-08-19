@@ -13,7 +13,7 @@ namespace Hangfire.PostgreSql.Tests.Integration
     {
         [Fact, CleanDatabase]
         [Trait("Category","Integration")]
-        public void Perf_AcquiringLock_SameResource()
+        public static void Perf_AcquiringLock_SameResource()
         {
             var connectionProvider = ConnectionUtils.GetConnectionProvider();
             var lockTimeout = TimeSpan.FromMilliseconds(1000);
@@ -29,7 +29,7 @@ namespace Hangfire.PostgreSql.Tests.Integration
         
         [Fact, CleanDatabase]
         [Trait("Category","Integration")]
-        public void Perf_AcquiringLock_DifferentResources()
+        public static void Perf_AcquiringLock_DifferentResources()
         {
             var connectionProvider = ConnectionUtils.GetConnectionProvider();
             var lockTimeout = TimeSpan.Zero;
@@ -74,7 +74,7 @@ namespace Hangfire.PostgreSql.Tests.Integration
 
         [Fact, CleanDatabase]
         [Trait("Category","Integration")]
-        public void Ctor_ActuallyGrantsExclusiveLock()
+        public static void Ctor_ActuallyGrantsExclusiveLock()
         {
             const int numberOfParallelJobs = 1000;
             var connectionProvider = ConnectionUtils.GetConnectionProvider();
