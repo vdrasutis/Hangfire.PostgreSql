@@ -11,27 +11,47 @@ namespace Hangfire.PostgreSql.Tests.Performance
 {
     public class DistributedLockTest
     {
-        [Fact(Skip = "Run only local."), CleanDatabase]
-        public void Perf_AcquiringLock()
+        [Fact, CleanDatabase]
+        [Trait("Category","Integration")]
+        public void Perf_AcquiringLock_Same()
         {
             const int concurrentQueries = 1000;
             var connectionProvider = ConnectionUtils.GetConnectionProvider();
 
-            var threads = Enumerable.Range(1, concurrentQueries).AsParallel()
+            var threads = Enumerable.Range(1, concurrentQueries)
+                .AsParallel()
                 .WithDegreeOfParallelism(Math.Min(concurrentQueries, 511)) // 511 is max for that method
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
                 .AsUnordered()
-                .Select(x => AcquireLock(connectionProvider))
+                .Select(x => AcquireLock("hello", connectionProvider))
+                .Sum();
+
+            Assert.Equal(concurrentQueries, threads);
+        }
+        
+        [Fact, CleanDatabase]
+        [Trait("Category","Integration")]
+        public void Perf_AcquiringLock_Different()
+        {
+            const int concurrentQueries = 1000;
+            var connectionProvider = ConnectionUtils.GetConnectionProvider();
+
+            var threads = Enumerable.Range(1, concurrentQueries)
+                .AsParallel()
+                .WithDegreeOfParallelism(Math.Min(concurrentQueries, 511)) // 511 is max for that method
+                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
+                .AsUnordered()
+                .Select(x => AcquireLock(x.ToString(), connectionProvider))
                 .Sum();
 
             Assert.Equal(concurrentQueries, threads);
         }
 
-        private static int AcquireLock(IConnectionProvider connectionProvider)
+        private static int AcquireLock(string resourceName, IConnectionProvider connectionProvider)
         {
             try
             {
-                using (var @lock = new DistributedLock("hello", TimeSpan.FromSeconds(1), connectionProvider))
+                using (var @lock = new DistributedLock(resourceName, TimeSpan.FromSeconds(1), connectionProvider))
                 {
                     return 1;
                 }
@@ -42,7 +62,8 @@ namespace Hangfire.PostgreSql.Tests.Performance
             }
         }
 
-        [Fact(Skip = "Run only local."), CleanDatabase]
+        [Fact, CleanDatabase]
+        [Trait("Category","Integration")]
         public void Ctor_ActuallyGrantsExclusiveLock()
         {
             const int numberOfParallelJobs = 1000;
