@@ -52,7 +52,7 @@ namespace Hangfire.PostgreSql
             var queue = new JobQueue(_connectionProvider, _options);
             _storageConnection = new StorageConnection(_connectionProvider, queue, _options);
             _monitoringApi = new MonitoringApi(_connectionProvider);
-            _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {builder.SearchPath}";
+            _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {builder.SearchPath}, Pool: {_connectionProvider.GetType().Name}";
 
             PrepareSchemaIfNecessary(builder.SearchPath);
         }

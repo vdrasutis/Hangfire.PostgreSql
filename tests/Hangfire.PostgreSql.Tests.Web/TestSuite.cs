@@ -20,7 +20,6 @@ namespace Hangfire.PostgreSql.Tests.Web
             var rnd = new Random();
             while (true)
             {
-
                 var alloc = rnd.Next(100000, 10000000);
                 var x = new DummyStruct[alloc];
                 x[0].A = 1;
@@ -60,7 +59,8 @@ namespace Hangfire.PostgreSql.Tests.Web
         public static void ContinuationTest()
         {
             var jobA = BackgroundJob.Enqueue(() => ContinuationPartA());
-            var jobB = BackgroundJob.ContinueWith(jobA, () => ContinuationPartB(), JobContinuationOptions.OnlyOnSucceededState);
+            var jobB = BackgroundJob.ContinueWith(jobA, () => ContinuationPartB(),
+                JobContinuationOptions.OnlyOnSucceededState);
             BackgroundJob.ContinueWith(jobB, () => ContinuationPartC(), JobContinuationOptions.OnAnyFinishedState);
         }
 
@@ -75,11 +75,22 @@ namespace Hangfire.PostgreSql.Tests.Web
         {
             throw new InvalidOperationException("TEST OK");
         }
-        
+
         [Queue("queue2")]
         public static string ContinuationPartC()
         {
             return "DONE";
+        }
+
+        public static object TaskBurst()
+        {
+            var tasks = 500;
+            for (var i = 0; i < tasks; i++)
+            {
+                BackgroundJob.Enqueue(() => ContinuationPartC());
+            }
+
+            return new { created = tasks };
         }
     }
 }
