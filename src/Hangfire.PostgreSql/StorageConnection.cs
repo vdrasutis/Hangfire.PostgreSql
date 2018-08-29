@@ -35,10 +35,7 @@ namespace Hangfire.PostgreSql
             => new WriteOnlyTransaction(_connectionProvider, _queue);
 
         public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
-            => new DistributedLock(
-                "hangfire:" + resource,
-                timeout,
-                _connectionProvider);
+            => new DistributedLock(resource, timeout, _connectionProvider);
 
         public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
         {
@@ -55,7 +52,7 @@ namespace Hangfire.PostgreSql
             Guard.ThrowIfNull(job, nameof(job));
             Guard.ThrowIfNull(parameters, nameof(parameters));
 
-            var createJobSql = $@"
+            const string createJobSql = @"
 INSERT INTO job (invocationdata, arguments, createdat, expireat)
 VALUES (@invocationData, @arguments, @createdAt, @expireAt) 
 RETURNING id;
@@ -91,7 +88,7 @@ RETURNING id;
                     };
                 }
 
-                var insertParameterSql = $@"
+                const string insertParameterSql = @"
 INSERT INTO jobparameter (jobid, name, value)
 VALUES (@jobId, @name, @value);
 ";
@@ -107,7 +104,7 @@ VALUES (@jobId, @name, @value);
         {
             Guard.ThrowIfNull(jobId, nameof(jobId));
 
-            var sql = $@"
+            const string sql = @"
 SELECT ""invocationdata"" ""invocationData"", ""statename"" ""stateName"", ""arguments"", ""createdat"" ""createdAt"" 
 FROM job 
 WHERE ""id"" = @id;
