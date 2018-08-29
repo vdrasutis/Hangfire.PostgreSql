@@ -10,8 +10,6 @@ namespace Hangfire.PostgreSql
     [DebuggerStepThrough]
     internal static class Guard
     {
-        private const string EnlistIsNotAvailableExceptionMessage =
-                "Npgsql is not fully compatible with TransactionScope yet, only connections without Enlist = true are accepted.";
         private const string HostHasNotFoundExceptionMessage = "Invalid Postgres connection string: Host has not found.";
         private const string SearchPathIsNotSpecified = "Invalid Postgres connection string: Search Path has not found.";
 
@@ -48,7 +46,6 @@ namespace Hangfire.PostgreSql
             ThrowIfNull(connectionString, nameof(connectionString));
             var connectionStringBuilder = new NpgsqlConnectionStringBuilder(connectionString);
             if (connectionStringBuilder.Host == null) throw new ArgumentException(HostHasNotFoundExceptionMessage);
-            if (connectionStringBuilder.Enlist) throw new ArgumentException(EnlistIsNotAvailableExceptionMessage);
             if (connectionStringBuilder.SearchPath == null) throw new ArgumentException(SearchPathIsNotSpecified);
         }
 
