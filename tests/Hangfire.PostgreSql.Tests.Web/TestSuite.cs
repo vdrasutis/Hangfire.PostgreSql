@@ -33,27 +33,25 @@ namespace Hangfire.PostgreSql.Tests.Web
 
         public static void CpuKill(int cpuUsage)
         {
-            Parallel.For(0, 1, i =>
-            {
-                var w1 = Stopwatch.StartNew();
-                Stopwatch watch = new Stopwatch();
-                watch.Start();
+            Parallel.For(0, 1, new ParallelOptions { MaxDegreeOfParallelism = 100 }, i =>
+              {
+                  var w1 = Stopwatch.StartNew();
+                  var watch = Stopwatch.StartNew();
+                  while (true)
+                  {
+                      if (watch.ElapsedMilliseconds > cpuUsage)
+                      {
+                          Thread.Sleep(100 - cpuUsage);
+                          watch.Reset();
+                          watch.Start();
+                      }
 
-                while (true)
-                {
-                    if (watch.ElapsedMilliseconds > cpuUsage)
-                    {
-                        Thread.Sleep(100 - cpuUsage);
-                        watch.Reset();
-                        watch.Start();
-                    }
-
-                    if (w1.Elapsed > TimeSpan.FromSeconds(15))
-                    {
-                        break;
-                    }
-                }
-            });
+                      if (w1.Elapsed > TimeSpan.FromSeconds(15))
+                      {
+                          break;
+                      }
+                  }
+              });
         }
 
         public static void ContinuationTest()
@@ -84,13 +82,18 @@ namespace Hangfire.PostgreSql.Tests.Web
 
         public static object TaskBurst()
         {
-            var tasks = 500;
-            for (var i = 0; i < tasks; i++)
-            {
-                BackgroundJob.Enqueue(() => ContinuationPartC());
-            }
+            var bjc = new BackgroundJobClient(JobStorage.Current);
 
-            return new { created = tasks };
+            const int tasks = 5000;
+            Parallel.For(0, tasks, new ParallelOptions { MaxDegreeOfParallelism = 10 }, i =>
+             {
+                 bjc.Enqueue(() => ContinuationPartC());
+             });
+
+            return new
+            {
+                created = tasks
+            };
         }
     }
 }
