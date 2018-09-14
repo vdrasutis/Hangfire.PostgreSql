@@ -45,27 +45,26 @@ namespace Hangfire.PostgreSql.Tests.Web
             app.UseDeveloperExceptionPage();
             app.UseHangfireServer(new BackgroundJobServerOptions
             {
-                ServerCheckInterval = TimeSpan.FromSeconds(1),
+                ServerCheckInterval = TimeSpan.FromSeconds(2),
                 HeartbeatInterval = TimeSpan.FromMilliseconds(500),
                 ServerTimeout = TimeSpan.FromSeconds(2),
-                ServerName = "TEST SERVER",
-                Queues = new[] { "queue1", "default", "queue2" }
+                ServerName = "Server default"
             });
             app.UseHangfireServer(new BackgroundJobServerOptions
             {
-                ServerCheckInterval = TimeSpan.FromSeconds(1),
+                ServerCheckInterval = TimeSpan.FromSeconds(2),
                 HeartbeatInterval = TimeSpan.FromMilliseconds(500),
                 ServerTimeout = TimeSpan.FromSeconds(2),
-                ServerName = "TEST SERVER 1 ",
-                Queues = new[] { "default", "queue2" }
+                ServerName = "Server Q1",
+                Queues = new[] { "queue1" }
             });
             app.UseHangfireServer(new BackgroundJobServerOptions
             {
-                ServerCheckInterval = TimeSpan.FromSeconds(1),
+                ServerCheckInterval = TimeSpan.FromSeconds(2),
                 HeartbeatInterval = TimeSpan.FromMilliseconds(500),
                 ServerTimeout = TimeSpan.FromSeconds(2),
-                ServerName = "TEST SERVER 2",
-                Queues = new[] { "queue1", "queue2" }
+                ServerName = "Server Q2",
+                Queues = new[] { "queue2" }
             });
 
             app.UseHangfireDashboard("", new DashboardOptions { StatsPollingInterval = 1000 });

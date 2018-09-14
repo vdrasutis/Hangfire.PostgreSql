@@ -50,16 +50,6 @@ namespace Hangfire.PostgreSql
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIfValueIsNotPositive(int value, [NotNull] string fieldName)
-        {
-            if (value <= 0)
-            {
-                var message = $"The {fieldName} property value should be positive. Given: {value}.";
-                throw new ArgumentException(message, nameof(value));
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ThrowIfValueIsNotPositive(TimeSpan value, [NotNull] string fieldName)
         {
             var message = $"The {fieldName} property value should be positive. Given: {value}.";

@@ -8,6 +8,23 @@ namespace Hangfire.PostgreSql
 {
     public static class PostgreSqlDashboardMetrics
     {
+        /// <summary>
+        /// Tells bootstrapper to add the following metrics to dashboard:
+        /// * Max connections count
+        /// * Active connections count
+        /// * PostgreSql server version
+        /// </summary>
+        /// <param name="configuration">Hangfire configuration</param>
+        /// <returns></returns>
+        [PublicAPI]
+        public static IGlobalConfiguration UsePostgreSqlMetrics(this IGlobalConfiguration configuration)
+        {
+            configuration.UseDashboardMetric(MaxConnections);
+            configuration.UseDashboardMetric(ActiveConnections);
+            configuration.UseDashboardMetric(PostgreSqlServerVersion);
+            return configuration;
+        }
+
         [PublicAPI]
         public static readonly DashboardMetric MaxConnections = new DashboardMetric(
             "pg:connections:max",
@@ -47,7 +64,7 @@ namespace Hangfire.PostgreSql
         [PublicAPI]
         public static readonly DashboardMetric ConnectionUsageRatio = new DashboardMetric(
             "pg:connections:ratio",
-            "Connections usage",
+            "Connections used",
             page => Execute(page, connection =>
             {
                 var max = connection.ExecuteScalar<long>(@"SHOW max_connections;");
@@ -55,18 +72,20 @@ namespace Hangfire.PostgreSql
 
                 var ratio = current * 100 / max;
                 var ratioString = ratio + "%";
+                var metric = new Metric(ratioString);
                 if (ratio < 50)
                 {
-                    return new Metric(ratioString) { Style = MetricStyle.Success };
+                    metric.Style = MetricStyle.Success;
                 }
                 else if (ratio < 90)
                 {
-                    return new Metric(ratioString) { Style = MetricStyle.Warning };
+                    metric.Style = MetricStyle.Warning;
                 }
                 else
                 {
-                    return new Metric(ratioString) { Style = MetricStyle.Danger, Highlighted = true };
+                    metric.Style = MetricStyle.Danger;
                 }
+                return metric;
             }, UndefinedMetric)
         );
 

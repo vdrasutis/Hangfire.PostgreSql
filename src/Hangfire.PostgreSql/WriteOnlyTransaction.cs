@@ -204,7 +204,7 @@ AND value = @value;
 
         public override void TrimList(string key, int keepStartingFrom, int keepEndingAt)
         {
-            var trimSql = $@"
+            const string trimSql = @"
 DELETE FROM list AS source
 WHERE key = @key
 AND id NOT IN (

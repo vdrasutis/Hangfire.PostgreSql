@@ -11,14 +11,14 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlFetchedJobFacts
+    public class FetchedJobFacts
     {
         private const string JobId = "id";
         private const string Queue = "queue";
 
         private readonly Mock<IConnectionProvider> _connection;
 
-        public PostgreSqlFetchedJobFacts()
+        public FetchedJobFacts()
         {
             _connection = new Mock<IConnectionProvider>();
         }
