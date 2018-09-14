@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -15,25 +14,22 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlConnectionFacts
+    public class StorageConnectionFacts
     {
-        private readonly Mock<IPersistentJobQueue> _queue;
+        private readonly Mock<IJobQueue> _queue;
         private readonly PostgreSqlStorageOptions _options;
 
-        public PostgreSqlConnectionFacts()
+        public StorageConnectionFacts()
         {
-            _queue = new Mock<IPersistentJobQueue>();
-            _options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
+            _queue = new Mock<IJobQueue>();
+            _options = new PostgreSqlStorageOptions();
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnection(null, _queue.Object, _options));
+                () => new StorageConnection(null, _queue.Object, _options));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
@@ -42,7 +38,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnection(ConnectionUtils.CreateConnection(), null, _options));
+                () => new StorageConnection(ConnectionUtils.GetConnectionProvider(), null, _options));
 
             Assert.Equal("queue", exception.ParamName);
         }
@@ -51,7 +47,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenOptionsIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlConnection(ConnectionUtils.CreateConnection(), _queue.Object, null));
+                () => new StorageConnection(ConnectionUtils.GetConnectionProvider(), _queue.Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -59,8 +55,8 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void Dispose_DoesNotDisposeTheConnection()
         {
-            var sqlConnection = ConnectionUtils.CreateConnection();
-            var connection = new PostgreSqlConnection(sqlConnection, _queue.Object, _options);
+            var sqlConnection = ConnectionUtils.GetConnectionProvider();
+            var connection = new StorageConnection(sqlConnection, _queue.Object, _options);
 
             connection.Dispose();
 
@@ -124,7 +120,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 var exception = Assert.Throws<ArgumentNullException>(
                     () => connection.CreateExpiredJob(
-                        Job.FromExpression(() => SampleMethod("hello")),
+                        Common.Job.FromExpression(() => Worker.DoWork("hello")),
                         null,
                         DateTime.UtcNow,
                         TimeSpan.Zero));
@@ -140,7 +136,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 var createdAt = new DateTime(2012, 12, 12);
                 var jobId = connection.CreateExpiredJob(
-                    Job.FromExpression(() => SampleMethod("Hello")),
+                    Common.Job.FromExpression(() => Worker.DoWork("Hello")),
                     new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" } },
                     createdAt,
                     TimeSpan.FromDays(1));
@@ -151,15 +147,15 @@ namespace Hangfire.PostgreSql.Tests
                 var sqlJob = sql.Query(@"select * from """ + GetSchemaName() + @""".""job""").Single();
                 Assert.Equal(jobId, sqlJob.id.ToString());
                 Assert.Equal(createdAt, sqlJob.createdat);
-                Assert.Equal(null, (int?)sqlJob.stateid);
-                Assert.Equal(null, (string)sqlJob.statename);
+                Assert.Null((int?)sqlJob.stateid);
+                Assert.Null((string)sqlJob.statename);
 
                 var invocationData = JobHelper.FromJson<InvocationData>((string)sqlJob.invocationdata);
                 invocationData.Arguments = sqlJob.arguments;
 
                 var job = invocationData.Deserialize();
-                Assert.Equal(typeof(PostgreSqlConnectionFacts), job.Type);
-                Assert.Equal("SampleMethod", job.Method.Name);
+                Assert.Equal(typeof(Worker), job.Type);
+                Assert.Equal(nameof(Worker.DoWork), job.Method.Name);
                 Assert.Equal("Hello", job.Args[0]);
 
                 Assert.True(createdAt.AddDays(1).AddMinutes(-1) < sqlJob.expireat);
@@ -201,7 +197,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
 
             UseConnections((sql, connection) =>
             {
-                var job = Job.FromExpression(() => SampleMethod("wrong"));
+                var job = Common.Job.FromExpression(() => Worker.DoWork("wrong"));
 
                 var jobId = (int)sql.Query(
                     arrangeSql,
@@ -675,7 +671,7 @@ values (@id, '', @heartbeat)";
                 var result = connection.GetAllItemsFromSet("some-set");
 
                 Assert.NotNull(result);
-                Assert.Equal(0, result.Count);
+                Assert.Empty(result);
             });
         }
 
@@ -1272,10 +1268,10 @@ values (@key, @field, @value)";
             });
         }
 
-        private void UseConnections(Action<NpgsqlConnection, PostgreSqlConnection> action)
+        private void UseConnections(Action<NpgsqlConnection, StorageConnection> action)
         {
-            var provider = ConnectionUtils.CreateConnection();
-            using (var connection = new PostgreSqlConnection(provider, _queue.Object, _options))
+            var provider = ConnectionUtils.GetConnectionProvider();
+            using (var connection = new StorageConnection(provider, _queue.Object, _options))
             {
                 using (var con = provider.AcquireConnection())
                 {
@@ -1284,10 +1280,10 @@ values (@key, @field, @value)";
             }
         }
 
-        private void UseConnection(Action<PostgreSqlConnection> action)
+        private void UseConnection(Action<StorageConnection> action)
         {
-            using (var connection = new PostgreSqlConnection(
-                ConnectionUtils.CreateConnection(),
+            using (var connection = new StorageConnection(
+                ConnectionUtils.GetConnectionProvider(),
                 _queue.Object,
                 _options))
             {
@@ -1300,8 +1296,11 @@ values (@key, @field, @value)";
             return ConnectionUtils.GetSchemaName();
         }
 
-        public static void SampleMethod(string wrong)
+        public static class Worker
         {
+            public static void DoWork(string argument)
+            {
+            }
         }
     }
 }

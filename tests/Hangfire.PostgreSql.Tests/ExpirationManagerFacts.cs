@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Maintenance;
 using Hangfire.PostgreSql.Tests.Utils;
 using Npgsql;
 using Xunit;
@@ -12,22 +13,17 @@ namespace Hangfire.PostgreSql.Tests
     public class ExpirationManagerFacts
     {
         private readonly CancellationToken _token;
-        private readonly PostgreSqlStorageOptions _options;
 
         public ExpirationManagerFacts()
         {
             var cts = new CancellationTokenSource();
             _token = cts.Token;
-            _options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenStorageIsNull()
         {
-            Assert.Throws<ArgumentNullException>(() => new ExpirationManager(null, _options));
+            Assert.Throws<ArgumentNullException>(() => new ExpirationManager(null));
         }
 
         [Fact, CleanDatabase]
@@ -211,20 +207,10 @@ values ('key', 1, now() at time zone 'utc' - interval '{0} seconds') returning "
             return count == 0;
         }
 
-        private NpgsqlConnection CreateConnection()
-        {
-            return ConnectionUtils.CreateNpgConnection();
-        }
+        private static NpgsqlConnection CreateConnection() => ConnectionUtils.CreateNpgConnection();
 
-        private static string GetSchemaName()
-        {
-            return ConnectionUtils.GetSchemaName();
-        }
+        private static string GetSchemaName() => ConnectionUtils.GetSchemaName();
 
-        private ExpirationManager CreateManager()
-        {
-            var connectionProvider = ConnectionUtils.CreateConnection();
-            return new ExpirationManager(connectionProvider, _options, TimeSpan.Zero);
-        }
+        private static ExpirationManager CreateManager() => new ExpirationManager(ConnectionUtils.GetConnectionProvider(), TimeSpan.Zero);
     }
 }

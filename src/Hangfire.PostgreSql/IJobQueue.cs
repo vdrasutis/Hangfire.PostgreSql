@@ -1,13 +1,11 @@
 using System.Threading;
 using Hangfire.Storage;
-using Npgsql;
 
 namespace Hangfire.PostgreSql
 {
-    internal interface IPersistentJobQueue
+    internal interface IJobQueue
     {
         void Enqueue(string queue, string jobId);
-        void Enqueue(string queue, string jobId, NpgsqlConnection connection);
         IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken);
     }
 }

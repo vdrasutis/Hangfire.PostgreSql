@@ -4,6 +4,7 @@ using System.Data;
 using System.Globalization;
 using System.Linq;
 using Dapper;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Hangfire.States;
 using Moq;
@@ -12,44 +13,29 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlWriteOnlyTransactionFacts
+    public class WriteOnlyTransactionFacts
     {
-        private readonly Mock<IPersistentJobQueue> _queue;
-        private readonly PostgreSqlStorageOptions _options;
+        private readonly Mock<IJobQueue> _queue;
 
-        public PostgreSqlWriteOnlyTransactionFacts()
+        public WriteOnlyTransactionFacts()
         {
-            _queue = new Mock<IPersistentJobQueue>();
-            _options = new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            };
+            _queue = new Mock<IJobQueue>();
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_IfConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(null, _queue.Object, _options));
+                () => new WriteOnlyTransaction(null, _queue.Object));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
-
-        [Fact]
-        public void Ctor_ThrowsAnException_IfOptionsIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), _queue.Object, null));
-
-            Assert.Equal("options", exception.ParamName);
-        }
-
 
         [Fact, CleanDatabase]
         public void Ctor_ThrowsAnException_IfQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlWriteOnlyTransaction(ConnectionUtils.CreateConnection(), null, _options));
+                () => new WriteOnlyTransaction(ConnectionUtils.GetConnectionProvider(), null));
 
             Assert.Equal("queue", exception.ParamName);
         }
@@ -177,7 +163,7 @@ returning ""id""";
             {
                 Commit(provider, x => x.AddToQueue("default", "1"));
 
-                _queue.Verify(x => x.Enqueue("default", "1", It.IsAny<NpgsqlConnection>()));
+                _queue.Verify(x => x.Enqueue("default", "1"));
             });
         }
 
@@ -991,18 +977,18 @@ returning ""id""";
             });
         }
 
-        private void UseConnection(Action<IPostgreSqlConnectionProvider, NpgsqlConnection> action)
+        private void UseConnection(Action<IConnectionProvider, NpgsqlConnection> action)
         {
-            var provider = ConnectionUtils.CreateConnection();
+            var provider = ConnectionUtils.GetConnectionProvider();
             using (var connection = provider.AcquireConnection())
             {
                 action(provider, connection.Connection);
             }
         }
 
-        private void Commit(IPostgreSqlConnectionProvider provider, Action<PostgreSqlWriteOnlyTransaction> action)
+        private void Commit(IConnectionProvider provider, Action<WriteOnlyTransaction> action)
         {
-            using (var transaction = new PostgreSqlWriteOnlyTransaction(provider, _queue.Object, _options))
+            using (var transaction = new WriteOnlyTransaction(provider, _queue.Object))
             {
                 action(transaction);
                 transaction.Commit();

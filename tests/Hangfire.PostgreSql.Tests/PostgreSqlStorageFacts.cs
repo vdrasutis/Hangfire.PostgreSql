@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using Hangfire.PostgreSql.Maintenance;
 using Hangfire.PostgreSql.Tests.Utils;
 using Xunit;
 
@@ -13,7 +14,6 @@ namespace Hangfire.PostgreSql.Tests
         {
             _options = new PostgreSqlStorageOptions { PrepareSchemaIfNecessary = false };
         }
-
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionStringIsNull()
@@ -32,7 +32,7 @@ namespace Hangfire.PostgreSql.Tests
 
             Assert.Equal("options", exception.ParamName);
         }
-        
+
         [Fact, CleanDatabase]
         public void GetMonitoringApi_ReturnsNonNullInstance()
         {
@@ -45,7 +45,7 @@ namespace Hangfire.PostgreSql.Tests
         public void GetConnection_ReturnsNonNullInstance()
         {
             var storage = CreateStorage();
-            using (var connection = (PostgreSqlConnection)storage.GetConnection())
+            using (var connection = (StorageConnection)storage.GetConnection())
             {
                 Assert.NotNull(connection);
             }
@@ -63,10 +63,6 @@ namespace Hangfire.PostgreSql.Tests
         }
 
         private PostgreSqlStorage CreateStorage()
-        {
-            return new PostgreSqlStorage(
-                ConnectionUtils.GetConnectionString(),
-                _options);
-        }
+            => new PostgreSqlStorage(ConnectionUtils.GetConnectionString(), _options);
     }
 }

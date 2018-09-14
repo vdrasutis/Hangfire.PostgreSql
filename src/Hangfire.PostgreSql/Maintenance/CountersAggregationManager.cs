@@ -3,9 +3,10 @@ using System.Data;
 using System.Threading;
 using Dapper;
 using Hangfire.Logging;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
 
-namespace Hangfire.PostgreSql
+namespace Hangfire.PostgreSql.Maintenance
 {
 #pragma warning disable 618 // TODO Remove when Hangfire 2.0 will be released
     internal sealed class CountersAggregationManager : IBackgroundProcess, IServerComponent
@@ -19,23 +20,20 @@ namespace Hangfire.PostgreSql
             "stats:deleted",
         };
 
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
-        private readonly PostgreSqlStorageOptions _options;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly TimeSpan _checkInterval;
 
-        public CountersAggregationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
-            : this(connectionProvider, options, TimeSpan.FromHours(1))
+        public CountersAggregationManager(IConnectionProvider connectionProvider)
+            : this(connectionProvider, TimeSpan.FromHours(1))
         {
         }
 
-        public CountersAggregationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options, TimeSpan checkInterval)
+        public CountersAggregationManager(IConnectionProvider connectionProvider, TimeSpan checkInterval)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
-            Guard.ThrowIfNull(options, nameof(options));
             Guard.ThrowIfValueIsNotPositive(checkInterval, nameof(checkInterval));
 
             _connectionProvider = connectionProvider;
-            _options = options;
             _checkInterval = checkInterval;
         }
 
@@ -67,10 +65,10 @@ namespace Hangfire.PostgreSql
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
             {
-                var aggregateQuery = $@"
+                const string aggregateQuery = @"
 WITH counters AS (
-DELETE FROM ""{_options.SchemaName}"".""counter""
-WHERE key = '{counterName}'
+DELETE FROM counter
+WHERE key = @counterName
 AND expireat IS NULL
 RETURNING *
 )
@@ -78,12 +76,12 @@ RETURNING *
 SELECT SUM(value) FROM counters;
 ";
 
-                var aggregatedValue = connectionHolder.Connection.ExecuteScalar<long>(aggregateQuery, transaction: transaction);
+                var aggregatedValue = connectionHolder.Connection.ExecuteScalar<long>(aggregateQuery, new { counterName }, transaction);
                 transaction.Commit();
 
                 if (aggregatedValue > 0)
                 {
-                    var query = $@"INSERT INTO ""{_options.SchemaName}"".counter (key, value) VALUES (@key, @value);";
+                    const string query = @"INSERT INTO counter (key, value) VALUES (@key, @value);";
                     connectionHolder.Connection.Execute(query, new { key = counterName, value = aggregatedValue });
                 }
                 Logger.InfoFormat("Aggregated counter \'{0}\', value: {1}", counterName, aggregatedValue);

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Hangfire.Common;
 using Hangfire.PostgreSql.Entities;
 using Hangfire.Storage;
@@ -9,46 +8,6 @@ namespace Hangfire.PostgreSql
 {
     internal static class Utils
     {
-        public static bool TryExecute(
-            Action action,
-            Func<Exception, bool> smoothExValidator = default(Func<Exception, bool>),
-            int? tryCount = default(int?))
-        {
-            object futile;
-            return TryExecute(() =>
-            {
-                action();
-                return null;
-            }, out futile, smoothExValidator, tryCount);
-        }
-
-        public static bool TryExecute<T>(
-            Func<T> func,
-            out T result,
-            Func<Exception, bool> smoothExValidator = default(Func<Exception, bool>),
-            int? tryCount = default(int?))
-        {
-            while (tryCount == default(int?) || tryCount-- > 0)
-            {
-                try
-                {
-                    result = func();
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    if (smoothExValidator != null && !smoothExValidator(ex))
-                    {
-                        throw;
-                    }
-                }
-            }
-
-            result = default(T);
-            return false;
-        }
-
-
         public delegate TDto JobSelector<TDto>(SqlJob sqlJob, Job job, Dictionary<string, string> state);
         public static JobList<TDto> DeserializeJobs<TDto>(ICollection<SqlJob> jobs, JobSelector<TDto> selector)
         {

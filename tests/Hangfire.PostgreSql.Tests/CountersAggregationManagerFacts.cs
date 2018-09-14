@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Maintenance;
 using Hangfire.PostgreSql.Tests.Utils;
 using Npgsql;
 using Xunit;
@@ -17,10 +18,7 @@ namespace Hangfire.PostgreSql.Tests
         {
             var cts = new CancellationTokenSource();
             _token = cts.Token;
-            _options = new PostgreSqlStorageOptions
-            {
-                SchemaName = GetSchemaName()
-            };
+            _options = new PostgreSqlStorageOptions();
         }
 
         [Fact, CleanDatabase]
@@ -29,8 +27,8 @@ namespace Hangfire.PostgreSql.Tests
             using (var connection = CreateConnection())
             {
                 // Arrange
-                string createSql = $@"
-insert into ""{GetSchemaName()}"".""counter"" (""key"", ""value"") 
+                var createSql = $@"
+insert into ""counter"" (""key"", ""value"") 
 values ('stats:succeeded', 1)";
                 for (int i = 0; i < 5; i++)
                 {
@@ -44,9 +42,9 @@ values ('stats:succeeded', 1)";
 
                 // Assert
                 Assert.Equal(1,
-                    connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""counter""").Single());
+                    connection.Query<long>(@"select count(*) from ""counter""").Single());
                 Assert.Equal(5,
-                    connection.Query<long>(@"select sum(value) from """ + GetSchemaName() + @""".""counter""")
+                    connection.Query<long>(@"select sum(value) from ""counter""")
                         .Single());
             }
         }
@@ -56,15 +54,10 @@ values ('stats:succeeded', 1)";
             return ConnectionUtils.CreateNpgConnection();
         }
 
-        private static string GetSchemaName()
-        {
-            return ConnectionUtils.GetSchemaName();
-        }
-
         private CountersAggregationManager CreateManager()
         {
-            var connectionProvider = ConnectionUtils.CreateConnection();
-            return new CountersAggregationManager(connectionProvider, _options, TimeSpan.FromSeconds(1));
+            var connectionProvider = ConnectionUtils.GetConnectionProvider();
+            return new CountersAggregationManager(connectionProvider, TimeSpan.FromSeconds(1));
         }
     }
 }

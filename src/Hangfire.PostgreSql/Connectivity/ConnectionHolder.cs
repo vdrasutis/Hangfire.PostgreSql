@@ -2,18 +2,17 @@
 using System.Data;
 using Npgsql;
 
-namespace Hangfire.PostgreSql
+namespace Hangfire.PostgreSql.Connectivity
 {
-    internal class PostgreSqlConnectionHolder : IDisposable
+    internal sealed class ConnectionHolder : IDisposable
     {
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
         private readonly NpgsqlConnection _connection;
+        private readonly Action<ConnectionHolder> _connectionDisposer;
 
-        public PostgreSqlConnectionHolder(IPostgreSqlConnectionProvider connectionProvider, NpgsqlConnection connection)
+        public ConnectionHolder(NpgsqlConnection connection, Action<ConnectionHolder> connectionDisposer)
         {
-            _connectionProvider = connectionProvider;
             _connection = connection;
-            GC.SuppressFinalize(this);
+            _connectionDisposer = connectionDisposer;
         }
 
         public NpgsqlConnection Connection
@@ -21,7 +20,9 @@ namespace Hangfire.PostgreSql
             get
             {
                 if (Disposed)
+                {
                     throw new ObjectDisposedException(nameof(Connection));
+                }
 
                 if (_connection.State == ConnectionState.Closed)
                 {
@@ -37,7 +38,9 @@ namespace Hangfire.PostgreSql
 
         public void Dispose()
         {
-            _connectionProvider.ReleaseConnection(this);
+            if (Disposed) return;
+
+            _connectionDisposer(this);
             Disposed = true;
         }
     }

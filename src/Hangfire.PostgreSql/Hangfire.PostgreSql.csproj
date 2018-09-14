@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <Description>PostgreSql storage implementation for Hangfire (background job system for ASP.NET applications).</Description>
     <Copyright>Copyright © 2014-2017 Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Copyright>
@@ -13,33 +12,31 @@
     <PackageReleaseNotes>https://github.com/ahydrax/Hangfire.PostgreSql/releases</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/ahydrax/Hangfire.PostgreSql</PackageProjectUrl>
     <PackageLicenseUrl>https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/LICENSE.md</PackageLicenseUrl>
-    <Version>1.5.5.1</Version>
-    <FileVersion>1.5.5.1</FileVersion>
-    <AssemblyVersion>1.5.5.1</AssemblyVersion>
+    <Version>1.6.0.0</Version>
+    <FileVersion>1.6.0.0</FileVersion>
+    <AssemblyVersion>1.6.0.0</AssemblyVersion>
     <NeutralLanguage />
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Company>Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Company>
   </PropertyGroup>
-
   <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard1.6' ">
     <DefineConstants>$(DefineConstants);NETCORE1</DefineConstants>
   </PropertyGroup>
-
   <ItemGroup Condition=" '$(TargetFramework)' == 'net452' ">
     <Reference Include="System.Configuration" />
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
-
   <ItemGroup>
+    <None Remove="Schema\Install.v10.sql" />
     <None Remove="Schema\Install.v3.sql" />
     <None Remove="Schema\Install.v4.sql" />
     <None Remove="Schema\Install.v5.sql" />
     <None Remove="Schema\Install.v6.sql" />
     <None Remove="Schema\Install.v7.sql" />
   </ItemGroup>
-
   <ItemGroup>
+    <EmbeddedResource Include="Schema\Install.v10.sql" />
     <EmbeddedResource Include="Schema\Install.v9.sql" />
     <EmbeddedResource Include="Schema\Install.v3.sql" />
     <EmbeddedResource Include="Schema\Install.v4.sql" />
@@ -48,12 +45,10 @@
     <EmbeddedResource Include="Schema\Install.v7.sql" />
     <EmbeddedResource Include="Schema\Install.v8.sql" Exclude="bin\**;obj\**;**\*.xproj;packages\**;@(EmbeddedResource)" />
   </ItemGroup>
-
   <ItemGroup>
-    <PackageReference Include="Dapper" Version="1.50.2" />
-    <PackageReference Include="Hangfire.Core" Version="1.6.15" />
-    <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
-    <PackageReference Include="Npgsql" Version="3.2.5" />
-    <PackageReference Include="System.ValueTuple" Version="4.4.0" />
+    <PackageReference Include="Dapper" Version="1.50.5" />
+    <PackageReference Include="Hangfire.Core" Version="1.6.20" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="Npgsql" Version="3.2.7" />
   </ItemGroup>
 </Project>

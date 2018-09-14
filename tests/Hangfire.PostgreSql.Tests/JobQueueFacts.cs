@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Tests.Utils;
 using Moq;
 using Npgsql;
@@ -10,7 +11,7 @@ using Xunit;
 
 namespace Hangfire.PostgreSql.Tests
 {
-    public class PostgreSqlJobQueueFacts
+    public class JobQueueFacts
     {
         private static readonly string[] DefaultQueues = { "default" };
 
@@ -18,7 +19,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlJobQueue(null, new PostgreSqlStorageOptions()));
+                () => new JobQueue(null, new PostgreSqlStorageOptions()));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
@@ -27,7 +28,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenOptionsValueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new PostgreSqlJobQueue(new Mock<IPostgreSqlConnectionProvider>().Object, null));
+                () => new JobQueue(new Mock<IConnectionProvider>().Object, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -121,7 +122,7 @@ values (@jobId, @queue) returning ""id""";
                 var queue = CreateJobQueue();
 
                 // Act
-                var payload = (PostgreSqlFetchedJob)queue.Dequeue(
+                var payload = (FetchedJob)queue.Dequeue(
                     DefaultQueues,
                     CreateTimingOutCancellationToken());
 
@@ -294,14 +295,14 @@ select i.""id"", @queue from i;
 
                 var queue = CreateJobQueue();
 
-                var queueFirst = (PostgreSqlFetchedJob)queue.Dequeue(
+                var queueFirst = (FetchedJob)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
                 Assert.NotNull(queueFirst.JobId);
                 Assert.Contains(queueFirst.Queue, queueNames);
 
-                var queueLast = (PostgreSqlFetchedJob)queue.Dequeue(
+                var queueLast = (FetchedJob)queue.Dequeue(
                     queueNames,
                     CreateTimingOutCancellationToken());
 
@@ -332,18 +333,15 @@ select i.""id"", @queue from i;
             return source.Token;
         }
 
-        private static PostgreSqlJobQueue CreateJobQueue()
+        private static JobQueue CreateJobQueue()
         {
-            var provider = ConnectionUtils.CreateConnection();
-            return new PostgreSqlJobQueue(provider, new PostgreSqlStorageOptions()
-            {
-                SchemaName = GetSchemaName()
-            });
+            var provider = ConnectionUtils.GetConnectionProvider();
+            return new JobQueue(provider, new PostgreSqlStorageOptions());
         }
 
         private static void UseConnection(Action<NpgsqlConnection> action)
         {
-            var provider = ConnectionUtils.CreateConnection();
+            var provider = ConnectionUtils.GetConnectionProvider();
             using (var connection = provider.AcquireConnection())
             {
                 action(connection.Connection);

@@ -4,7 +4,7 @@ using Hangfire.Annotations;
 namespace Hangfire.PostgreSql.Entities
 {
     [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
-    internal class FetchedJob
+    internal class FetchedJobDto
     {
         public int Id { get; set; }
         public int JobId { get; set; }

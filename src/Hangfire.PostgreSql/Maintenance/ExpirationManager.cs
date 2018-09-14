@@ -4,9 +4,10 @@ using System.Globalization;
 using System.Threading;
 using Dapper;
 using Hangfire.Logging;
+using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
 
-namespace Hangfire.PostgreSql
+namespace Hangfire.PostgreSql.Maintenance
 {
 #pragma warning disable 618 // TODO Remove when Hangfire 2.0 will be released
     internal sealed class ExpirationManager : IBackgroundProcess, IServerComponent
@@ -26,19 +27,17 @@ namespace Hangfire.PostgreSql
             "hash",
         };
 
-        private readonly IPostgreSqlConnectionProvider _connectionProvider;
-        private readonly PostgreSqlStorageOptions _options;
+        private readonly IConnectionProvider _connectionProvider;
         private readonly TimeSpan _checkInterval;
 
-        public ExpirationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options)
-            : this(connectionProvider, options, TimeSpan.FromHours(1))
+        public ExpirationManager(IConnectionProvider connectionProvider)
+            : this(connectionProvider, TimeSpan.FromHours(1))
         {
         }
 
-        public ExpirationManager(IPostgreSqlConnectionProvider connectionProvider, PostgreSqlStorageOptions options, TimeSpan checkInterval)
+        public ExpirationManager(IConnectionProvider connectionProvider, TimeSpan checkInterval)
         {
             _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
             _checkInterval = checkInterval;
         }
 
@@ -52,20 +51,20 @@ namespace Hangfire.PostgreSql
             {
                 Logger.DebugFormat("Removing outdated records from table '{0}'...", table);
 
-                int removedCount = 0;
-
+                int removedCount;
                 do
                 {
                     using (var connectionHolder = _connectionProvider.AcquireConnection())
                     using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
                     {
+                        // Pgsql doesn't support parameters for table names that's why you're going this 'awful' sql query interpolation
                         var query = $@"
-DELETE FROM ""{_options.SchemaName}"".{table} 
+DELETE FROM {table}
 WHERE id IN (
     SELECT id
-    FROM ""{_options.SchemaName}"".{table}
+    FROM {table}
     WHERE expireat < NOW() AT TIME ZONE 'UTC' 
-    LIMIT {NumberOfRecordsInSinglePass.ToString(CultureInfo.InvariantCulture)}
+    LIMIT {Convert.ToString(NumberOfRecordsInSinglePass, CultureInfo.InvariantCulture)}
 )";
                         removedCount = connectionHolder.Connection.Execute(query, transaction: transaction);
                         transaction.Commit();
@@ -81,6 +80,7 @@ WHERE id IN (
                 } while (removedCount != 0);
             }
             cancellationToken.WaitHandle.WaitOne(_checkInterval);
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 }
