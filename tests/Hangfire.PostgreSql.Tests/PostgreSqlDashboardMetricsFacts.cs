@@ -34,7 +34,7 @@ namespace Hangfire.PostgreSql.Tests
             public TestPage()
             {
                 var connectionString = ConnectionUtils.GetConnectionString();
-                var storage = new PostgreSqlStorage(connectionString);
+                var storage = new PostgreSqlStorage(connectionString, new PostgreSqlStorageOptions { PrepareSchemaIfNecessary = false });
                 // HACK: Workaround for injection test storage
                 GetType().GetProperty(nameof(Storage)).SetValue(this, storage);
             }
