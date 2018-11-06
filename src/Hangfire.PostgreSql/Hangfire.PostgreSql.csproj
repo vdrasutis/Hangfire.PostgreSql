@@ -29,6 +29,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="Schema\Install.v10.sql" />
+    <None Remove="Schema\Install.v11.sql" />
     <None Remove="Schema\Install.v3.sql" />
     <None Remove="Schema\Install.v4.sql" />
     <None Remove="Schema\Install.v5.sql" />
@@ -36,6 +37,7 @@
     <None Remove="Schema\Install.v7.sql" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Schema\Install.v11.sql" />
     <EmbeddedResource Include="Schema\Install.v10.sql" />
     <EmbeddedResource Include="Schema\Install.v9.sql" />
     <EmbeddedResource Include="Schema\Install.v3.sql" />

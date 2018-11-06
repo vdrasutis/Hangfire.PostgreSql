@@ -32,8 +32,8 @@ namespace Hangfire.PostgreSql
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 var connection = connectionHolder.Connection;
-                var locked = LockDatabase(connection);
-                if (!locked) return;
+                var lockTaken = LockDatabase(connection);
+                if (!lockTaken) return;
 
                 TryCreateSchema(connection);
                 var installedVersion = GetInstalledVersion(connection);
@@ -63,15 +63,17 @@ namespace Hangfire.PostgreSql
             Log.Info("Hangfire SQL objects installed.");
         }
 
-        private bool LockDatabase(NpgsqlConnection connection) => connection.Query<bool>(@"SELECT pg_try_advisory_lock(12345)").Single();
+        private static bool LockDatabase(NpgsqlConnection connection)
+            => connection.Query<bool>(@"SELECT pg_try_advisory_lock(12345)").Single();
 
-        private void UnlockDatabase(NpgsqlConnection connection) => connection.Execute(@"SELECT pg_advisory_unlock(12345)");
+        private static void UnlockDatabase(NpgsqlConnection connection)
+            => connection.Execute(@"SELECT pg_advisory_unlock(12345)");
 
-        private int GetInstalledVersion(NpgsqlConnection connection)
+        private static int GetInstalledVersion(NpgsqlConnection connection)
         {
             try
             {
-                return connection.Query<int?>(@"SELECT version FROM schema").SingleOrDefault() ?? 1;
+                return connection.Query<int>(@"SELECT version FROM schema").SingleOrDefault();
             }
             catch
             {

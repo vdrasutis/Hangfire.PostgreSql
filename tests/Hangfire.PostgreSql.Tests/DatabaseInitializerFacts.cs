@@ -14,7 +14,7 @@ namespace Hangfire.PostgreSql.Tests
             {
                 using (var connectionHolder = ConnectionUtils.GetConnectionProvider().AcquireConnection())
                 {
-                    string schemaName = "hangfire_tests_" + Guid.NewGuid().ToString().Replace("-", "_").ToLower();
+                    string schemaName = "hangfire_tests_" + Guid.NewGuid().ToString("N");
 
                     var databaseInitializer = new DatabaseInitializer(ConnectionUtils.GetConnectionProvider(), schemaName);
 
@@ -25,6 +25,29 @@ namespace Hangfire.PostgreSql.Tests
             });
 
             Assert.Null(ex);
+        }
+
+        [Fact]
+        public void UpdateSchemaShouldNotThrowAnException()
+        {
+            var schemaName = "hangfire_tests_" + Guid.NewGuid().ToString("N");
+            try
+            {
+                var databaseInitializer = new DatabaseInitializer(ConnectionUtils.GetConnectionProvider(), schemaName);
+
+                // INIT DB
+                databaseInitializer.Initialize();
+
+                // TRY TO UPDATE
+                databaseInitializer.Initialize();
+            }
+            finally
+            {
+                using (var connectionHolder = ConnectionUtils.GetConnectionProvider().AcquireConnection())
+                {
+                    connectionHolder.Connection.Execute($@"DROP SCHEMA ""{schemaName}"" CASCADE;");
+                }
+            }
         }
     }
 }
