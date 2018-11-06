@@ -13,6 +13,7 @@ namespace Hangfire.PostgreSql.Tests.Utils
             @"Server=localhost;Port=5432;Database=hangfire_tests;User Id=postgres;Password=password;Search Path=hangfire";
 
         public static string GetConnectionString() => Environment.GetEnvironmentVariable(ConnectionStringVariableName) ?? DefaultConnectionString;
+        public static IConnectionBuilder GetConnectionBuilder() => new DefaultConnectionBuilder(GetConnectionString());
 
         public static string GetDatabaseName()
         {
@@ -29,15 +30,15 @@ namespace Hangfire.PostgreSql.Tests.Utils
         private static readonly Lazy<IConnectionProvider> LazyConnectionProvider = new Lazy<IConnectionProvider>(() =>
         {
             var connectionString = GetConnectionString();
-            var builder = new NpgsqlConnectionStringBuilder(connectionString);
+            var connectionBuilder = new DefaultConnectionBuilder(connectionString);
 
-            if (builder.Pooling)
+            if (connectionBuilder.ConnectionStringBuilder.Pooling)
             {
-                return new NpgsqlConnectionProvider(connectionString);
+                return new NpgsqlConnectionProvider(connectionBuilder);
             }
             else
             {
-                return new DefaultConnectionProvider(connectionString);
+                return new DefaultConnectionProvider(connectionBuilder);
             }
         }, LazyThreadSafetyMode.ExecutionAndPublication);
 
