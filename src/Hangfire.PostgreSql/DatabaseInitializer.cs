@@ -50,8 +50,8 @@ namespace Hangfire.PostgreSql
                     }
 
                     connection.Execute(
-                        @"UPDATE schema SET version = @version WHERE version = @installedVersion",
-                        new { lastMigration.Version, installedVersion },
+                        @"UPDATE schema SET version = @version",
+                        new { version = lastMigration.Version },
                         transaction);
 
                     transaction.Commit();
