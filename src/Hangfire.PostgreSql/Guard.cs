@@ -21,11 +21,19 @@ namespace Hangfire.PostgreSql
                 throw new ArgumentNullException(argumentName);
         }
 
+        [ContractAnnotation("condition:true => halt")]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ThrowIf([NotNull] bool condition, [NotNull] string message)
+        {
+            if (condition)
+                throw new ArgumentException(message);
+        }
+
         [ContractAnnotation("argument:null => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ThrowIfNullOrEmpty([NotNull] string argument, [NotNull] string argumentName)
         {
-            if (string.IsNullOrEmpty(argument))
+            if (string.IsNullOrWhiteSpace(argument))
                 throw new ArgumentNullException(argumentName);
         }
 
@@ -52,15 +60,26 @@ namespace Hangfire.PostgreSql
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ThrowIfValueIsNotPositive(TimeSpan value, [NotNull] string fieldName)
         {
-            var message = $"The {fieldName} property value should be positive. Given: {value}.";
+            var message = $"The {fieldName} property value must be positive value. Given: {value}.";
 
             if (value == TimeSpan.Zero)
             {
-                throw new ArgumentException(message, nameof(value));
+                throw new ArgumentException(message, fieldName);
             }
             if (value != value.Duration())
             {
-                throw new ArgumentException(message, nameof(value));
+                throw new ArgumentException(message, fieldName);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ThrowIfValueIsNegative(TimeSpan value, [NotNull] string fieldName)
+        {
+            var message = $"The {fieldName} property value must be zero or positive value. Given: {value}.";
+
+            if (value != value.Duration())
+            {
+                throw new ArgumentException(message, fieldName);
             }
         }
     }

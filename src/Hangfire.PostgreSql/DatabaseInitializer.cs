@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
@@ -45,12 +46,22 @@ namespace Hangfire.PostgreSql
                     var lastMigration = default(MigrationInfo);
                     foreach (var migration in availableMigrations)
                     {
-                        connection.Execute(migration.Script, transaction: transaction);
+                        try
+                        {
+                            connection.Execute(migration.Script, transaction: transaction);
+                        }
+                        catch (Exception e)
+                        {
+                            var errorMessage = $"Error during installing v{migration.Version}";
+                            Log.ErrorException(errorMessage, e);
+                            throw new ApplicationException(errorMessage, e);
+                        }
                         lastMigration = migration;
+                        Log.Info($"Installing Hangfire SQL migration #{migration.Version}");
                     }
 
                     connection.Execute(
-                        @"UPDATE schema SET version = @version",
+                        @"update schema set version = @version",
                         new { version = lastMigration.Version },
                         transaction);
 
@@ -64,16 +75,16 @@ namespace Hangfire.PostgreSql
         }
 
         private static bool LockDatabase(NpgsqlConnection connection)
-            => connection.Query<bool>(@"SELECT pg_try_advisory_lock(12345)").Single();
+            => connection.Query<bool>(@"select pg_try_advisory_lock(12345)").Single();
 
         private static void UnlockDatabase(NpgsqlConnection connection)
-            => connection.Execute(@"SELECT pg_advisory_unlock(12345)");
+            => connection.Execute(@"select pg_advisory_unlock(12345)");
 
         private static int GetInstalledVersion(NpgsqlConnection connection)
         {
             try
             {
-                return connection.Query<int>(@"SELECT version FROM schema").SingleOrDefault();
+                return connection.Query<int>(@"select version from schema").SingleOrDefault();
             }
             catch
             {
@@ -92,7 +103,7 @@ namespace Hangfire.PostgreSql
                 // Already created
             }
 
-            connection.Execute($@"SET search_path={_schemaName}");
+            connection.Execute($@"set search_path={_schemaName}");
         }
 
         private static IEnumerable<MigrationInfo> GetMigrations()

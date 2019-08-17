@@ -49,14 +49,22 @@ namespace Hangfire.PostgreSql.Connectivity
 
         private NpgsqlConnection GetFreeConnection()
         {
-            var spinWait = new SpinWait();
+            var yielded = false;
             NpgsqlConnection connection;
             while (!_connectionPool.TryTake(out connection))
             {
                 connection = CreateConnectionIfNeeded();
                 if (connection != null) return connection;
 
-                spinWait.SpinOnce();
+                if (!yielded)
+                {
+                    Thread.Yield();
+                    yielded = true;
+                }
+                else
+                {
+                    Thread.Sleep(5);
+                }
             }
             return connection;
         }
@@ -114,7 +122,7 @@ namespace Hangfire.PostgreSql.Connectivity
 
                 if (stopwatch.Elapsed > DisposeTimeout && _activeConnections > 0)
                 {
-                    string message = $"Disposing of connection pool took too long.  Connections left: {_activeConnections}";
+                    var message = $"Disposing of connection pool took too long. Connections left: {_activeConnections}";
                     Logger.Error(message);
                     throw new TimeoutException(message);
                 }

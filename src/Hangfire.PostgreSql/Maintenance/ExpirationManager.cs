@@ -3,6 +3,7 @@ using System.Data;
 using System.Globalization;
 using System.Threading;
 using Dapper;
+using Hangfire.Common;
 using Hangfire.Logging;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
@@ -13,9 +14,6 @@ namespace Hangfire.PostgreSql.Maintenance
     internal sealed class ExpirationManager : IBackgroundProcess, IServerComponent
 #pragma warning restore 618
     {
-        private static readonly TimeSpan DelayBetweenPasses = TimeSpan.FromSeconds(1);
-        private const int NumberOfRecordsInSinglePass = 1000;
-
         private static readonly ILog Logger = LogProvider.GetLogger(typeof(ExpirationManager));
 
         private static readonly string[] ProcessedTables =
@@ -37,13 +35,16 @@ namespace Hangfire.PostgreSql.Maintenance
 
         public ExpirationManager(IConnectionProvider connectionProvider, TimeSpan checkInterval)
         {
-            _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
+            Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
+            Guard.ThrowIfValueIsNotPositive(checkInterval, nameof(checkInterval));
+
+            _connectionProvider = connectionProvider;
             _checkInterval = checkInterval;
         }
 
-        public override string ToString() => "PostgreSql Expiration Manager";
+        public override string ToString() => "PostgreSQL Expiration Manager";
 
-        public void Execute(BackgroundProcessContext context) => Execute(context.CancellationToken);
+        public void Execute(BackgroundProcessContext context) => Execute(context.StoppingToken);
 
         public void Execute(CancellationToken cancellationToken)
         {
@@ -51,36 +52,16 @@ namespace Hangfire.PostgreSql.Maintenance
             {
                 Logger.DebugFormat("Removing outdated records from table '{0}'...", table);
 
-                int removedCount;
-                do
+                var query = $@"delete from {table} where expireat is not null and expireat < now() at time zone 'UTC';";
+
+                var removedCount = _connectionProvider.Execute(query);
+                if (removedCount > 0)
                 {
-                    using (var connectionHolder = _connectionProvider.AcquireConnection())
-                    using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
-                    {
-                        // Pgsql doesn't support parameters for table names that's why you're going this 'awful' sql query interpolation
-                        var query = $@"
-DELETE FROM {table}
-WHERE id IN (
-    SELECT id
-    FROM {table}
-    WHERE expireat < NOW() AT TIME ZONE 'UTC' 
-    LIMIT {Convert.ToString(NumberOfRecordsInSinglePass, CultureInfo.InvariantCulture)}
-)";
-                        removedCount = connectionHolder.Connection.Execute(query, transaction: transaction);
-                        transaction.Commit();
-                    }
+                    Logger.InfoFormat("Removed {0} outdated record(s) from '{1}' table.", removedCount, table);
+                }
 
-                    if (removedCount > 0)
-                    {
-                        Logger.InfoFormat("Removed {0} outdated record(s) from '{1}' table.", removedCount, table);
-
-                        cancellationToken.WaitHandle.WaitOne(DelayBetweenPasses);
-                        cancellationToken.ThrowIfCancellationRequested();
-                    }
-                } while (removedCount != 0);
+                cancellationToken.Wait(_checkInterval);
             }
-            cancellationToken.WaitHandle.WaitOne(_checkInterval);
-            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 }

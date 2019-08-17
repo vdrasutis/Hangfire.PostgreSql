@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using Dapper;
 using Hangfire.Common;
@@ -14,16 +13,18 @@ using FetchedJobDto = Hangfire.Storage.Monitoring.FetchedJobDto;
 // ReSharper disable RedundantAnonymousTypePropertyName
 namespace Hangfire.PostgreSql
 {
-    internal class MonitoringApi : IMonitoringApi
+    internal sealed class MonitoringApi : IMonitoringApi
     {
-        private const string AscOrder = "ASC";
-        private const string DescOrder = "DESC";
+        private const string AscOrder = "asc";
+        private const string DescOrder = "desc";
 
         private readonly IConnectionProvider _connectionProvider;
 
         public MonitoringApi(IConnectionProvider connectionProvider)
         {
-            _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
+            Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
+
+            _connectionProvider = connectionProvider;
         }
 
         public long ScheduledCount()
@@ -32,10 +33,10 @@ namespace Hangfire.PostgreSql
         public long EnqueuedCount(string queue)
         {
             const string query = @"
-SELECT COUNT(*) 
-FROM jobqueue 
-WHERE fetchedat IS NULL 
-AND queue = @queue
+select count(*) 
+from jobqueue 
+where queue = @queue 
+and fetchedat is null
 ";
             return GetLong(queue, query);
         }
@@ -43,22 +44,16 @@ AND queue = @queue
         public long FetchedCount(string queue)
         {
             const string query = @"
-SELECT COUNT(*) 
-FROM jobqueue 
-WHERE fetchedat IS NOT NULL 
-AND queue = @queue
+select count(*) 
+from jobqueue 
+where queue = @queue
+and fetchedat is not null
 ";
             return GetLong(queue, query);
         }
 
         private long GetLong(string queue, string query)
-        {
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
-            {
-                var result = connectionHolder.Connection.ExecuteScalar<long>(query, new { queue = queue });
-                return result;
-            }
-        }
+            => _connectionProvider.FetchScalar<long>(query, new { queue = queue });
 
         public long FailedCount()
             => GetNumberOfJobsByStateName(FailedState.StateName);
@@ -97,20 +92,20 @@ AND queue = @queue
             List<Entities.Server> serverDtos;
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
-                const string query = @"SELECT * FROM server";
+                const string query = @"select * from server";
                 serverDtos = connectionHolder.Connection.Query<Entities.Server>(query).ToList();
             }
 
             var servers = new List<ServerDto>(serverDtos.Count);
             foreach (var server in serverDtos)
             {
-                var data = JobHelper.FromJson<ServerData>(server.Data);
+                var data = SerializationHelper.Deserialize<ServerData>(server.Data);
                 servers.Add(new ServerDto
                 {
                     Name = server.Id,
                     Heartbeat = server.LastHeartbeat,
                     Queues = data.Queues,
-                    StartedAt = data.StartedAt ?? DateTime.MinValue,
+                    StartedAt = data.StartedAt,
                     WorkersCount = data.WorkerCount
                 });
             }
@@ -141,8 +136,7 @@ AND queue = @queue
                        Job = job,
                        Result = stateData.ContainsKey("Result") ? stateData["Result"] : null,
                        TotalDuration = stateData.ContainsKey("PerformanceDuration") && stateData.ContainsKey("Latency")
-                           ? (long?)long.Parse(stateData["PerformanceDuration"]) +
-                            (long?)long.Parse(stateData["Latency"])
+                           ? new long?(long.Parse(stateData["PerformanceDuration"]) + long.Parse(stateData["Latency"]))
                            : null,
                        SucceededAt = JobHelper.DeserializeNullableDateTime(stateData["SucceededAt"])
                    }, DescOrder);
@@ -187,49 +181,50 @@ AND queue = @queue
 
         public JobDetailsDto JobDetails(string jobId)
         {
-            const string sql = @"
-SELECT id ""Id"", 
-       invocationdata ""InvocationData"", 
-       arguments ""Arguments"", 
-       createdat ""CreatedAt"", 
-       expireat ""ExpireAt"" 
-FROM job
-WHERE id = @id;
+            const string jobSql = @"
+select id as Id, 
+       invocationdata as InvocationData, 
+       arguments as Arguments,
+       createdat as CreatedAt,
+       expireat as ExpireAt
+from job
+where id = @id;";
 
-SELECT jobid ""JobId"", 
-       name ""Name"",
-       value ""Value"" 
-FROM jobparameter 
-WHERE jobid = @id;
+            const string parametersSql = @"
+select jobid as JobId, 
+       name as Name,
+       value as Value
+from jobparameter 
+where jobid = @id;";
 
-SELECT jobid ""JobId"", 
-       name ""Name"", 
-       reason ""Reason"", 
-       createdat ""CreatedAt"", 
-       data ""Data"" 
-FROM state 
-WHERE jobid = @id 
-ORDER BY id DESC;
-";
-            var sqlParameters = new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) };
+            const string stateSql = @"
+select jobid as JobId, 
+       name as Name, 
+       reason as Reason, 
+       createdat as CreatedAt, 
+       data as Data
+from state 
+where jobid = @id 
+order by id desc;";
 
+            var sqlParameters = new { id = JobId.ToLong(jobId) };
             using (var connectionHolder = _connectionProvider.AcquireConnection())
-            using (var multi = connectionHolder.Connection.QueryMultiple(sql, sqlParameters))
             {
-                var job = multi.Read<SqlJob>().SingleOrDefault();
-                if (job == null) return null;
+                var job = connectionHolder.Fetch<SqlJob>(jobSql, sqlParameters);
 
-                var parameters = multi.Read<JobParameter>().ToDictionary(x => x.Name, x => x.Value);
-                var history = multi.Read<SqlState>()
-                                   .ToList()
-                                   .Select(x => new StateHistoryDto
-                                   {
-                                       StateName = x.Name,
-                                       CreatedAt = x.CreatedAt,
-                                       Reason = x.Reason,
-                                       Data = JobHelper.FromJson<Dictionary<string, string>>(x.Data)
-                                   })
-                                   .ToList();
+                var parameters = connectionHolder
+                    .FetchList<SqlJobParameter>(parametersSql, sqlParameters)
+                    .ToDictionary(x => x.Name, x => x.Value);
+
+                var history = connectionHolder
+                    .FetchList<SqlState>(stateSql, sqlParameters)
+                    .SelectToList(x => new StateHistoryDto
+                    {
+                        StateName = x.Name,
+                        CreatedAt = x.CreatedAt,
+                        Reason = x.Reason,
+                        Data = SerializationHelper.Deserialize<Dictionary<string, string>>(x.Data)
+                    });
 
                 return new JobDetailsDto
                 {
@@ -249,54 +244,40 @@ ORDER BY id DESC;
 
         public StatisticsDto GetStatistics()
         {
-            const string sql = @"
-SELECT statename ""State"", 
-       COUNT(*) ""Count"" 
-FROM job
-WHERE statename IS NOT NULL
-GROUP BY statename;
-
-SELECT COUNT(*) 
-FROM server;
-
-SELECT SUM(value) 
-FROM counter 
-WHERE key = 'stats:succeeded';
-
-SELECT SUM(value) 
-FROM counter 
-WHERE key = 'stats:deleted';
-
-SELECT COUNT(*) 
-FROM set 
-WHERE key = 'recurring-jobs';
-";
-
-            var stats = new StatisticsDto();
+            var statistics = new StatisticsDto();
             using (var connectionHolder = _connectionProvider.AcquireConnection())
-            using (var gridReader = connectionHolder.Connection.QueryMultiple(sql))
             {
-                var countByStates = gridReader.Read().ToDictionary(x => x.State, x => x.Count);
+                const string stateSql = @"
+select statename, count(statename)
+from job
+where statename in ('Enqueued', 'Failed', 'Processing', 'Scheduled')
+group by statename;";
+                var stateCounters = connectionHolder.FetchList<(string name, long count)>(stateSql);
+                statistics.Enqueued = stateCounters.FirstOrDefault(x => x.name == "Enqueued").count;
+                statistics.Failed = stateCounters.FirstOrDefault(x => x.name == "Failed").count;
+                statistics.Processing = stateCounters.FirstOrDefault(x => x.name == "Processing").count;
+                statistics.Scheduled = stateCounters.FirstOrDefault(x => x.name == "Scheduled").count;
 
-                long GetCountIfExists(string name) => countByStates.ContainsKey(name) ? countByStates[name] : 0;
+                const string countersSql = @"
+select key, sum(value)
+from counter
+where key in ('stats:succeeded', 'stats:deleted')
+group by key;";
+                var counters = connectionHolder.FetchList<(string key, long count)>(countersSql);
+                statistics.Succeeded = counters.FirstOrDefault(x => x.key == "stats:succeeded").count;
+                statistics.Deleted = counters.FirstOrDefault(x => x.key == "stats:deleted").count;
 
-                stats.Enqueued = GetCountIfExists(EnqueuedState.StateName);
-                stats.Failed = GetCountIfExists(FailedState.StateName);
-                stats.Processing = GetCountIfExists(ProcessingState.StateName);
-                stats.Scheduled = GetCountIfExists(ScheduledState.StateName);
+                const string recurringSql = @"
+select count(key)
+from set
+where key = 'recurring-jobs';";
+                statistics.Recurring = connectionHolder.FetchScalar<long>(recurringSql);
 
-                stats.Servers = gridReader.Read<long>().Single();
+                statistics.Queues = GetQueues().LongCount();
 
-                stats.Succeeded = gridReader.Read<long?>().SingleOrDefault() ?? 0;
-                stats.Deleted = gridReader.Read<long?>().SingleOrDefault() ?? 0;
-
-                stats.Recurring = gridReader.Read<long>().Single();
+                statistics.Servers = connectionHolder.FetchScalar<long>("select count(id) from server;");
             }
-
-            stats.Queues = GetQueues().Count();
-
-            return stats;
-
+            return statistics;
         }
 
         private Dictionary<DateTime, long> GetHourlyTimelineStats(string type)
@@ -318,10 +299,10 @@ WHERE key = 'recurring-jobs';
         private Dictionary<DateTime, long> GetTimelineStats(IDictionary<string, DateTime> keyMaps)
         {
             const string query = @"
-SELECT key, COUNT(*) ""count"" 
-FROM counter 
-WHERE key = ANY (@keys)
-GROUP BY key;
+select key, count(*) ""count"" 
+from counter 
+where key = ANY (@keys)
+GROUP by key;
 ";
             Dictionary<string, long> valuesMap;
             using (var connectionHolder = _connectionProvider.AcquireConnection())
@@ -351,9 +332,9 @@ GROUP BY key;
         private long GetNumberOfJobsByStateName(string stateName)
         {
             const string sqlQuery = @"
-SELECT COUNT(*) 
-FROM job 
-WHERE statename = @state;
+select count(*) 
+from job 
+where statename = @state;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -366,63 +347,68 @@ WHERE statename = @state;
         private JobList<TDto> GetJobs<TDto>(int from, int count, string stateName, Utils.JobSelector<TDto> selector, string sorting = AscOrder)
         {
             var query = $@"
-SELECT j.id ""Id"",
+select j.id ""Id"",
        j.invocationdata ""InvocationData"",
        j.arguments ""Arguments"", 
        j.createdat ""CreatedAt"", 
        j.expireat ""ExpireAt"",
-       NULL ""FetchedAt"",
+       null ""FetchedAt"",
        j.statename ""StateName"",
        s.reason ""StateReason"",
        s.data ""StateData""
-FROM job j
-LEFT JOIN state s ON j.stateid = s.id
-WHERE j.statename = @stateName 
-ORDER BY j.id {sorting} 
-LIMIT @count OFFSET @start;
+from job j
+LEFT join state s on j.stateid = s.id
+where j.statename = @stateName 
+order by j.id {sorting} 
+limit @count OFFSET @start;
 ";
             var parameters = new { stateName = stateName, start = @from, count = count };
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
-            {
-                var jobs = connectionHolder.Connection.Query<SqlJob>(query, parameters).ToList();
-                return Utils.DeserializeJobs(jobs, selector);
-            }
+            var jobs = _connectionProvider.FetchList<SqlJob>(query, parameters);
+            return Utils.DeserializeJobs(jobs, selector);
         }
 
-        private const string EnqueuedFetchCondition = "IS NULL";
-        private const string FetchedFetchCondition = "IS NOT NULL";
+        private const string EnqueuedFetchCondition = "is null";
+        private const string FetchedFetchCondition = "is not null";
+
+
+        private readonly object _cachedQueuesSyncRoot = new object();
+        private DateTime _cachedQueuesUpdatedAt = DateTime.MinValue;
+        private List<string> _cachedQueues = new List<string>(0);
 
         public IEnumerable<string> GetQueues()
         {
-            const string query = @"
-SELECT DISTINCT queue 
-FROM jobqueue;
-";
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
+            if (DateTime.UtcNow - TimeSpan.FromSeconds(5) > _cachedQueuesUpdatedAt)
             {
-                return connectionHolder.Connection.Query(query).Select(x => (string)x.queue).ToList();
+                lock (_cachedQueuesSyncRoot)
+                {
+                    if (DateTime.UtcNow - TimeSpan.FromSeconds(5) > _cachedQueuesUpdatedAt)
+                    {
+                        _cachedQueuesUpdatedAt = DateTime.UtcNow;
+                        const string query = @"select distinct queue from jobqueue;";
+                        _cachedQueues = _connectionProvider.FetchList<string>(query);
+                    }
+                }
             }
+
+            return _cachedQueues;
         }
 
         public JobList<EnqueuedJobDto> EnqueuedJobs(string queue, int from, int perPage)
         {
             var enqueuedJobsQuery = GetQuery(queue, @from, perPage, EnqueuedState.StateName, EnqueuedFetchCondition);
 
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
-            {
-                var jobs = connectionHolder.Connection.Query<SqlJob>(enqueuedJobsQuery).ToList();
+            var jobs = _connectionProvider.FetchList<SqlJob>(enqueuedJobsQuery);
 
-                return Utils.DeserializeJobs(
-                    jobs,
-                    (sqlJob, job, stateData) => new EnqueuedJobDto
-                    {
-                        Job = job,
-                        State = sqlJob.StateName,
-                        EnqueuedAt = sqlJob.StateName == EnqueuedState.StateName
-                            ? JobHelper.DeserializeNullableDateTime(stateData["EnqueuedAt"])
-                            : null
-                    });
-            }
+            return Utils.DeserializeJobs(
+                jobs,
+                (sqlJob, job, stateData) => new EnqueuedJobDto
+                {
+                    Job = job,
+                    State = sqlJob.StateName,
+                    EnqueuedAt = sqlJob.StateName == EnqueuedState.StateName
+                        ? JobHelper.DeserializeNullableDateTime(stateData["EnqueuedAt"])
+                        : null
+                });
         }
 
         public JobList<FetchedJobDto> FetchedJobs(string queue, int from, int perPage)
@@ -445,7 +431,7 @@ FROM jobqueue;
         }
 
         private static string GetQuery(string queue, int @from, int perPage, string stateName, string fetchCondition) => $@"
-SELECT j.id ""Id"",
+select j.id ""Id"",
        j.invocationdata ""InvocationData"", 
        j.arguments ""Arguments"", 
        j.createdat ""CreatedAt"", 
@@ -453,35 +439,23 @@ SELECT j.id ""Id"",
        s.name ""StateName"", 
        s.reason""StateReason"", 
        s.data ""StateData""
-FROM jobqueue jq
-LEFT JOIN job j ON jq.jobid = j.id
-LEFT JOIN state s ON s.id = j.stateid
-WHERE jq.queue = '{queue}'
-AND jq.fetchedat {fetchCondition}
-AND s.name = '{stateName}'
-LIMIT {perPage} OFFSET {from};";
+from jobqueue jq
+LEFT join job j on jq.jobid = j.id
+LEFT join state s on s.id = j.stateid
+where jq.queue = '{queue}'
+and jq.fetchedat {fetchCondition}
+and s.name = '{stateName}'
+limit {perPage} OFFSET {from};";
 
         private EnqueuedAndFetchedJobsCount GetEnqueuedAndFetchedCount(string queue)
         {
             const string query = @"
-SELECT (
-        SELECT COUNT(*) 
-        FROM jobqueue 
-        WHERE fetchedat IS NULL 
-        AND queue = @queue
-    ) AS Enqueued, 
-    (
-        SELECT COUNT(*) 
-        FROM jobqueue 
-        WHERE fetchedat IS NOT NULL 
-        AND queue = @queue
-    ) AS Fetched;
+select count(CASE WHEN fetchedat is null THEN 1 ELSE 0 END) as Enqueued,
+       count(CASE WHEN fetchedat is not null THEN 1 ELSE 0 END) as Fetched
+from jobqueue
+where queue = @queue
 ";
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
-            {
-                var result = connectionHolder.Connection.Query<EnqueuedAndFetchedJobsCount>(query, new { queue = queue }).Single();
-                return result;
-            }
+            return _connectionProvider.Fetch<EnqueuedAndFetchedJobsCount>(query, new { queue = queue });
         }
     }
 }

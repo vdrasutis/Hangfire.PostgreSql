@@ -2,6 +2,8 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Hangfire.Console;
+using Hangfire.Server;
 
 namespace Hangfire.PostgreSql.Tests.Web
 {
@@ -10,8 +12,10 @@ namespace Hangfire.PostgreSql.Tests.Web
         struct DummyStruct
         {
             public int A;
+#pragma warning disable 649 // used only for payload
             public int B;
             public int C;
+#pragma warning restore 649
         }
 
         public static void Alloc()
@@ -56,43 +60,60 @@ namespace Hangfire.PostgreSql.Tests.Web
 
         public static void ContinuationTest()
         {
-            var jobA = BackgroundJob.Enqueue(() => ContinuationPartA());
-            var jobB = BackgroundJob.ContinueWith(jobA, () => ContinuationPartB(),
+            var jobA = BackgroundJob.Enqueue(() => ContinuationPartA(null));
+            var jobB = BackgroundJob.ContinueJobWith(jobA,
+                () => ContinuationPartB(),
                 JobContinuationOptions.OnlyOnSucceededState);
-            BackgroundJob.ContinueWith(jobB, () => ContinuationPartC(), JobContinuationOptions.OnAnyFinishedState);
+
+            BackgroundJob.ContinueJobWith(jobB,
+                () => ContinuationPartC(),
+                JobContinuationOptions.OnAnyFinishedState);
         }
 
         [Queue("queue1")]
-        public static void ContinuationPartA()
+        public static async Task ContinuationPartA(PerformContext context)
         {
-            Thread.Sleep(TimeSpan.FromSeconds(5));
+            var progress = context.WriteProgressBar("completion", 0);
+            await Task.Yield();
+
+            for (int i = 0; i < 100; i++)
+            {
+                await Task.Delay(100);
+                progress.SetValue(i + 1);
+            }
+
+            for (int i = 0; i < 1000; i++)
+            {
+                context.WriteLine($"printed {i}, {DateTime.UtcNow:O}");
+            }
+
+            await Task.Delay(5000);
         }
 
         [AutomaticRetry(Attempts = 0)]
-        public static void ContinuationPartB()
-        {
-            throw new InvalidOperationException("TEST OK");
-        }
+        public static void ContinuationPartB() => throw new InvalidOperationException("TEST OK");
 
         [Queue("queue2")]
-        public static string ContinuationPartC()
-        {
-            return "DONE";
-        }
+        public static string ContinuationPartC() => "DONE";
 
         public static object TaskBurst()
         {
             var bjc = new BackgroundJobClient(JobStorage.Current);
 
-            const int tasks = 5000;
-            Parallel.For(0, tasks, new ParallelOptions { MaxDegreeOfParallelism = 10 }, i =>
-             {
-                 bjc.Enqueue(() => ContinuationPartC());
-             });
+            const int tasksPerBatch = 1000;
+            const int parallelRuns = 50;
+
+            Parallel.For(0, parallelRuns, new ParallelOptions { MaxDegreeOfParallelism = parallelRuns }, i =>
+            {
+                for (int j = 0; j < tasksPerBatch; j++)
+                {
+                    bjc.Enqueue(() => ContinuationPartC());
+                }
+            });
 
             return new
             {
-                created = tasks
+                created = tasksPerBatch * parallelRuns
             };
         }
     }

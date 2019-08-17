@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading;
 using Dapper;
 using Hangfire.Common;
+using Hangfire.PostgreSql.Connectivity;
+using Hangfire.PostgreSql.Storage;
 using Hangfire.PostgreSql.Tests.Utils;
 using Hangfire.Server;
 using Hangfire.Storage;
@@ -16,20 +18,24 @@ namespace Hangfire.PostgreSql.Tests
 {
     public class StorageConnectionFacts
     {
-        private readonly Mock<IJobQueue> _queue;
         private readonly PostgreSqlStorageOptions _options;
+        private readonly IJobQueue _queue;
+        private readonly IConnectionProvider _connectionProvider;
+        private readonly StorageConnection _storageConnection;
 
         public StorageConnectionFacts()
         {
-            _queue = new Mock<IJobQueue>();
+            _connectionProvider = ConnectionUtils.GetConnectionProvider();
             _options = new PostgreSqlStorageOptions();
+            _queue = new JobQueue(_connectionProvider, _options);
+            _storageConnection = new StorageConnection(_connectionProvider, _queue, _options);
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new StorageConnection(null, _queue.Object, _options));
+                () => new StorageConnection(null, _queue, _options));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
@@ -47,7 +53,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenOptionsIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new StorageConnection(ConnectionUtils.GetConnectionProvider(), _queue.Object, null));
+                () => new StorageConnection(ConnectionUtils.GetConnectionProvider(), _queue, null));
 
             Assert.Equal("options", exception.ParamName);
         }
@@ -56,7 +62,7 @@ namespace Hangfire.PostgreSql.Tests
         public void Dispose_DoesNotDisposeTheConnection()
         {
             var sqlConnection = ConnectionUtils.GetConnectionProvider();
-            var connection = new StorageConnection(sqlConnection, _queue.Object, _options);
+            var connection = new StorageConnection(sqlConnection, _queue, _options);
 
             connection.Dispose();
 
@@ -66,25 +72,26 @@ namespace Hangfire.PostgreSql.Tests
         [Fact, CleanDatabase]
         public void FetchNextJob_DelegatesItsExecution_ToTheQueue()
         {
-            UseConnection(connection =>
-            {
-                var token = new CancellationToken();
-                var queues = new[] { "default" };
+            // Arrange
+            var queue = new Mock<IJobQueue>();
+            var storageConnection = new StorageConnection(_connectionProvider, queue.Object, _options);
+            var token = new CancellationToken();
+            var queues = new[] { "default" };
 
-                connection.FetchNextJob(queues, token);
+            // Act
+            storageConnection.FetchNextJob(queues, token);
 
-                _queue.Verify(x => x.Dequeue(queues, token));
-            });
+            // Assert
+            queue.Verify(x => x.Dequeue(queues, token));
         }
 
         [Fact, CleanDatabase]
         public void CreateWriteTransaction_ReturnsNonNullInstance()
         {
-            UseConnection(connection =>
+            using (var transaction = _storageConnection.CreateWriteTransaction())
             {
-                var transaction = connection.CreateWriteTransaction();
                 Assert.NotNull(transaction);
-            });
+            }
         }
 
         [Fact, CleanDatabase]
@@ -150,10 +157,10 @@ namespace Hangfire.PostgreSql.Tests
                 Assert.Null((int?)sqlJob.stateid);
                 Assert.Null((string)sqlJob.statename);
 
-                var invocationData = JobHelper.FromJson<InvocationData>((string)sqlJob.invocationdata);
+                var invocationData = SerializationHelper.Deserialize<InvocationData>((string)sqlJob.invocationdata);
                 invocationData.Arguments = sqlJob.arguments;
 
-                var job = invocationData.Deserialize();
+                var job = invocationData.DeserializeJob();
                 Assert.Equal(typeof(Worker), job.Type);
                 Assert.Equal(nameof(Worker.DoWork), job.Method.Name);
                 Assert.Equal("Hello", job.Args[0]);
@@ -163,7 +170,7 @@ namespace Hangfire.PostgreSql.Tests
 
                 var parameters = sql.Query(
                         @"select * from """ + GetSchemaName() + @""".""jobparameter"" where ""jobid"" = @id",
-                        new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) })
+                        new { id = JobId.ToLong(jobId) })
                     .ToDictionary(x => (string)x.name, x => (string)x.value);
 
                 Assert.Equal("Value1", parameters["Key1"]);
@@ -203,7 +210,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
                     arrangeSql,
                     new
                     {
-                        invocationData = JobHelper.ToJson(InvocationData.Serialize(job)),
+                        invocationData = SerializationHelper.Serialize(InvocationData.SerializeJob(job)),
                         stateName = "Succeeded",
                         arguments = "[\"\\\"Arguments\\\"\"]"
                     }).Single().id;
@@ -243,16 +250,16 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
         public void GetStateData_ReturnsCorrectData()
         {
             string createJobSql = @"
-INSERT INTO """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""statename"", ""createdat"")
-    VALUES ('', '', '', now() at time zone 'utc') RETURNING ""id"";
+insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""statename"", ""createdat"")
+    values ('', '', '', now() at time zone 'utc') returning ""id"";
             ";
 
             string createStateSql = @"
 insert into """ + GetSchemaName() + @""".""state"" (""jobid"", ""name"", ""createdat"")
-VALUES(@jobId, 'old-state', now() at time zone 'utc');
+values(@jobId, 'old-state', now() at time zone 'utc');
 
 insert into """ + GetSchemaName() + @""".""state"" (""jobid"", ""name"", ""reason"", ""data"", ""createdat"")
-VALUES(@jobId, @name, @reason, @data, now() at time zone 'utc')
+values(@jobId, @name, @reason, @data, now() at time zone 'utc')
 returning ""id"";";
 
             string updateJobStateSql = @"
@@ -272,7 +279,7 @@ returning ""id"";";
 
                 var stateId = (int)sql.Query(
                     createStateSql,
-                    new { jobId = jobId, name = "Name", reason = "Reason", @data = JobHelper.ToJson(data) }).Single().id;
+                    new { jobId = jobId, name = "Name", reason = "Reason", @data = SerializationHelper.Serialize(data) }).Single().id;
 
                 sql.Execute(updateJobStateSql, new { jobId = jobId, stateId = stateId });
 
@@ -298,7 +305,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
                     arrangeSql,
                     new
                     {
-                        invocationData = JobHelper.ToJson(new InvocationData(null, null, null, null)),
+                        invocationData = SerializationHelper.Serialize(new InvocationData(null, null, null, null)),
                         stateName = "Succeeded",
                         arguments = "['Arguments']"
                     }).Single();
@@ -350,7 +357,7 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 var parameter = sql.Query(
                     @"select * from """ + GetSchemaName() +
                     @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
-                    new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name" }).Single();
+                    new { id = JobId.ToLong(jobId), name = "Name" }).Single();
 
                 Assert.Equal("Value", parameter.value);
             });
@@ -374,7 +381,7 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 var parameter = sql.Query(
                     @"select * from """ + GetSchemaName() +
                     @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
-                    new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name" }).Single();
+                    new { id = JobId.ToLong(jobId), name = "Name" }).Single();
 
                 Assert.Equal("AnotherValue", parameter.value);
             });
@@ -397,7 +404,7 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 var parameter = sql.Query(
                     @"select * from """ + GetSchemaName() +
                     @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
-                    new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), name = "Name" }).Single();
+                    new { id = JobId.ToLong(jobId), name = "Name" }).Single();
 
                 Assert.Equal((string)null, parameter.value);
             });
@@ -441,14 +448,14 @@ values ('', '', now() at time zone 'utc') returning ""id""";
         public void GetParameter_ReturnsParameterValue_WhenJobExists()
         {
             string arrangeSql = @"
-WITH ""insertedjob"" AS (
-    INSERT INTO """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
-    VALUES ('', '', now() at time zone 'utc') RETURNING ""id""
+with ""insertedjob"" as (
+    insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
+    values ('', '', now() at time zone 'utc') returning ""id""
 )
-INSERT INTO """ + GetSchemaName() + @""".""jobparameter"" (""jobid"", ""name"", ""value"")
-SELECT ""insertedjob"".""id"", @name, @value
-FROM ""insertedjob""
-RETURNING ""jobid"";
+insert into """ + GetSchemaName() + @""".""jobparameter"" (""jobid"", ""name"", ""value"")
+select ""insertedjob"".""id"", @name, @value
+from ""insertedjob""
+returning ""jobid"";
 ";
             UseConnections((sql, connection) =>
             {
@@ -456,7 +463,7 @@ RETURNING ""jobid"";
                     arrangeSql,
                     new { name = "name", value = "value" }).Single();
 
-                var value = connection.GetJobParameter(Convert.ToString(id, CultureInfo.InvariantCulture), "name");
+                var value = connection.GetJobParameter(JobId.ToString(id), "name");
 
                 Assert.Equal("value", value);
             });
@@ -1271,7 +1278,7 @@ values (@key, @field, @value)";
         private void UseConnections(Action<NpgsqlConnection, StorageConnection> action)
         {
             var provider = ConnectionUtils.GetConnectionProvider();
-            using (var connection = new StorageConnection(provider, _queue.Object, _options))
+            using (var connection = new StorageConnection(provider, _queue, _options))
             {
                 using (var con = provider.AcquireConnection())
                 {
@@ -1284,7 +1291,7 @@ values (@key, @field, @value)";
         {
             using (var connection = new StorageConnection(
                 ConnectionUtils.GetConnectionProvider(),
-                _queue.Object,
+                _queue,
                 _options))
             {
                 action(connection);

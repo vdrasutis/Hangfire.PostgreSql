@@ -26,18 +26,9 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_IfConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new WriteOnlyTransaction(null, _queue.Object));
+                () => new WriteOnlyTransaction(null));
 
             Assert.Equal("connectionProvider", exception.ParamName);
-        }
-
-        [Fact, CleanDatabase]
-        public void Ctor_ThrowsAnException_IfQueueIsNull()
-        {
-            var exception = Assert.Throws<ArgumentNullException>(
-                () => new WriteOnlyTransaction(ConnectionUtils.GetConnectionProvider(), null));
-
-            Assert.Equal("queue", exception.ParamName);
         }
 
         [Fact, CleanDatabase]
@@ -157,21 +148,22 @@ returning ""id""";
         }
 
         [Fact, CleanDatabase]
-        public void AddToQueue_CallsEnqueue_OnTargetPersistentQueue()
+        public void AddToQueue_InsertsJobIdToQueue()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.AddToQueue("default", "1"));
 
-                _queue.Verify(x => x.Enqueue("default", "1"));
+                var queueLength = connection.ExecuteScalar<int>("select count(*) from jobqueue where jobId = 1");
+
+                Assert.Equal(1, queueLength);
             });
         }
 
         private static dynamic GetTestJob(IDbConnection connection, string jobId)
         {
             return connection
-                .Query(@"select * from """ + GetSchemaName() + @""".""job"" where ""id"" = @id",
-                    new { id = Convert.ToInt32(jobId, CultureInfo.InvariantCulture) })
+                .Query(@"select * from job where id = @id", new { id = JobId.ToLong(jobId) })
                 .Single();
         }
 
@@ -626,6 +618,25 @@ returning ""id""";
         }
 
         [Fact, CleanDatabase]
+        public void SetRangeInHash_CanSetANullValue()
+        {
+            UseConnection((provider, connection) =>
+            {
+                Commit(provider, x => x.SetRangeInHash("some-hash", new Dictionary<string, string>
+                {
+                    { "Key1", null }
+                }));
+
+                var result = connection.Query<(string field, string value)>(
+                        "select field, value from hash where key = @key",
+                        new { key = "some-hash" })
+                    .ToDictionary(x => x.field, x => x.value);
+
+                Assert.Null(result["Key1"]);
+            });
+        }
+
+        [Fact, CleanDatabase]
         public void SetRangeInHash_MergesAllRecords()
         {
             UseConnection((provider, connection) =>
@@ -988,7 +999,7 @@ returning ""id""";
 
         private void Commit(IConnectionProvider provider, Action<WriteOnlyTransaction> action)
         {
-            using (var transaction = new WriteOnlyTransaction(provider, _queue.Object))
+            using (var transaction = new WriteOnlyTransaction(provider))
             {
                 action(transaction);
                 transaction.Commit();

@@ -1,8 +1,7 @@
 using System;
 using System.Globalization;
-using System.Linq;
 using System.Threading;
-using Dapper;
+using Hangfire.Common;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Entities;
 using Hangfire.Storage;
@@ -24,25 +23,32 @@ namespace Hangfire.PostgreSql
             _options = options;
         }
 
+        public void Enqueue(string queue, long jobId)
+        {
+            const string query = @"
+insert into jobqueue (jobid, queue) 
+values (@jobId, @queue)
+";
+            var parameters = new { jobId = jobId, queue = queue };
+            _connectionProvider.Execute(query, parameters);
+        }
+
         public IFetchedJob Dequeue(string[] queues, CancellationToken cancellationToken)
         {
             Guard.ThrowIfCollectionIsNullOrEmpty(queues, nameof(queues));
-
-            var queuesList = string.Join(",", queues.Select(x => $"'{x}'"));
-            var queuesOrder = string.Join(",", queues.Select(x => $@"queue='{x}'"));
+            cancellationToken.ThrowIfCancellationRequested();
 
             var fetchJobSqlTemplate = $@"
-UPDATE jobqueue AS jobqueue
-SET fetchedat = NOW() AT TIME ZONE 'UTC'
-WHERE jobqueue.id = (
-    SELECT id
-    FROM jobqueue
-    WHERE queue IN ({queuesList})
-    AND (fetchedat IS NULL OR fetchedat < NOW() AT TIME ZONE 'UTC' - @timeout)
-    ORDER BY ({queuesOrder}) DESC
-    LIMIT 1
-    FOR UPDATE SKIP LOCKED)
-RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS FetchedAt;
+update jobqueue
+set fetchedat = @fetched
+where id = (
+    select id
+    from jobqueue
+    where queue IN ('{string.Join("', '", queues)}')
+    and (fetchedat is null or fetchedat < @timeout)
+    limit 1
+    for update skip locked)
+returning id as Id, jobid as JobId, queue as Queue, fetchedat as FetchedAt;
 ";
 
             FetchedJobDto fetchedJobDto;
@@ -50,19 +56,11 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                using (var connectionHolder = _connectionProvider.AcquireConnection())
-                {
-                    fetchedJobDto = connectionHolder.Connection.Query<FetchedJobDto>(
-                            fetchJobSqlTemplate,
-                            new { queues = queues, timeout = _options.InvisibilityTimeout })
-                        .SingleOrDefault();
-                }
+                var now = DateTime.UtcNow;
+                var parameters = new { fetched = now, timeout = now - _options.InvisibilityTimeout };
+                fetchedJobDto = _connectionProvider.Fetch<FetchedJobDto>(fetchJobSqlTemplate, parameters);
 
-                if (fetchedJobDto == null)
-                {
-                    cancellationToken.WaitHandle.WaitOne(_options.QueuePollInterval);
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
+                if (fetchedJobDto == null) cancellationToken.Wait(_options.QueuePollInterval);
 
             } while (fetchedJobDto == null);
 
@@ -71,19 +69,6 @@ RETURNING jobqueue.id AS Id, jobid AS JobId, queue AS Queue, fetchedat AS Fetche
                 fetchedJobDto.Id,
                 fetchedJobDto.JobId.ToString(CultureInfo.InvariantCulture),
                 fetchedJobDto.Queue);
-        }
-
-        public void Enqueue(string queue, string jobId)
-        {
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
-            {
-                const string query = @"
-INSERT INTO jobqueue (jobid, queue) 
-VALUES (@jobId, @queue)
-";
-                var parameters = new { jobId = Convert.ToInt32(jobId, CultureInfo.InvariantCulture), queue = queue };
-                connectionHolder.Connection.Execute(query, parameters);
-            }
         }
     }
 }

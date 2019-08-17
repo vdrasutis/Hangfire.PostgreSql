@@ -4,11 +4,15 @@ using Hangfire.Annotations;
 using Hangfire.Logging;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Maintenance;
+using Hangfire.PostgreSql.Storage;
 using Hangfire.Server;
 using Hangfire.Storage;
 
 namespace Hangfire.PostgreSql
 {
+    /// <summary>
+    /// PostgreSQL storage implementation for Hangfire.
+    /// </summary>
     [PublicAPI]
     public sealed class PostgreSqlStorage : JobStorage, IDisposable
     {
@@ -52,14 +56,13 @@ namespace Hangfire.PostgreSql
         public PostgreSqlStorage(IConnectionBuilder connectionBuilder)
             : this(connectionBuilder, new PostgreSqlStorageOptions())
         {
-
         }
-        
+
         /// <summary>
         /// Initializes PostgreSqlStorage with the provided connection builder and the provided PostgreSqlStorageOptions.
         /// </summary>
-        /// <param name="connectionBuilder">A Postgres connection builder</param>
-        /// <param name="options"></param>
+        /// <param name="connectionBuilder">PostgreSQL connection builder.</param>
+        /// <param name="options">PostgreSQL storage options.</param>
         /// <exception cref="ArgumentNullException"><paramref name="connectionBuilder"/> is null.</exception>
         /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
         /// <exception cref="ArgumentException"><paramref name="connectionBuilder"/> has an invalid PostgreSql connection string.</exception>
@@ -100,11 +103,14 @@ namespace Hangfire.PostgreSql
 
         internal IConnectionProvider ConnectionProvider => _connectionProvider;
 
+        /// <inheritdoc/>
         public override IMonitoringApi GetMonitoringApi() => _monitoringApi;
 
+        /// <inheritdoc/>
         public override IStorageConnection GetConnection() => _storageConnection;
 
 #pragma warning disable 618 // TODO Remove when Hangfire 2.0 will be released
+        /// <inheritdoc/>
         public override IEnumerable<IServerComponent> GetComponents()
             => new IServerComponent[]
 #pragma warning restore 618
@@ -114,21 +120,21 @@ namespace Hangfire.PostgreSql
                 new CountersAggregationManager(_connectionProvider)
             };
 
+        /// <inheritdoc/>
         public override void WriteOptionsToLog(ILog logger)
         {
             logger.Info("Using the following options for SQL Server job storage:");
             logger.Info(_storageInfo);
-            logger.InfoFormat("    Prepare schema: {0}.", _options.PrepareSchemaIfNecessary);
-            logger.InfoFormat("    Queue poll interval: {0}.", _options.QueuePollInterval);
-            logger.InfoFormat("    Invisibility timeout: {0}.", _options.InvisibilityTimeout);
-            logger.InfoFormat("    Distributed lock timeout: {0}.", _options.DistributedLockTimeout);
+            logger.InfoFormat("  Prepare schema: {0}.", _options.PrepareSchemaIfNecessary);
+            logger.InfoFormat("  Queue poll interval: {0}.", _options.QueuePollInterval);
+            logger.InfoFormat("  Invisibility timeout: {0}.", _options.InvisibilityTimeout);
+            logger.InfoFormat("  Distributed lock timeout: {0}.", _options.DistributedLockTimeout);
         }
 
+        /// <inheritdoc/>
         public override string ToString() => _storageInfo;
 
-        public void Dispose()
-        {
-            _connectionProvider.Dispose();
-        }
+        /// <inheritdoc/>
+        public void Dispose() => _connectionProvider.Dispose();
     }
 }

@@ -4,7 +4,7 @@ using Hangfire.Storage;
 
 namespace Hangfire.PostgreSql
 {
-    internal class FetchedJob : IFetchedJob
+    internal sealed class FetchedJob : IFetchedJob
     {
         private readonly IConnectionProvider _connectionProvider;
         private bool _disposed;
@@ -13,7 +13,7 @@ namespace Hangfire.PostgreSql
 
         public FetchedJob(
             IConnectionProvider connectionProvider,
-            int id,
+            long id,
             string jobId,
             string queue)
         {
@@ -27,15 +27,15 @@ namespace Hangfire.PostgreSql
             Queue = queue;
         }
 
-        public int Id { get; }
+        public long Id { get; }
         public string JobId { get; }
         public string Queue { get; }
 
         public void RemoveFromQueue()
         {
             const string query = @"
-DELETE FROM jobqueue
-WHERE id = @id;
+delete from jobqueue
+where id = @id;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
@@ -47,9 +47,9 @@ WHERE id = @id;
         public void Requeue()
         {
             const string query = @"
-UPDATE jobqueue 
-SET fetchedat = NULL 
-WHERE id = @id;
+update jobqueue 
+set fetchedat = null 
+where id = @id;
 ";
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {

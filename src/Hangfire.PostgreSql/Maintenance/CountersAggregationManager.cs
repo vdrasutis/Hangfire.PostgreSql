@@ -2,9 +2,11 @@
 using System.Data;
 using System.Threading;
 using Dapper;
+using Hangfire.Common;
 using Hangfire.Logging;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.Server;
+using Hangfire.Storage;
 
 namespace Hangfire.PostgreSql.Maintenance
 {
@@ -24,7 +26,7 @@ namespace Hangfire.PostgreSql.Maintenance
         private readonly TimeSpan _checkInterval;
 
         public CountersAggregationManager(IConnectionProvider connectionProvider)
-            : this(connectionProvider, TimeSpan.FromHours(1))
+            : this(connectionProvider, TimeSpan.FromSeconds(30))
         {
         }
 
@@ -37,17 +39,14 @@ namespace Hangfire.PostgreSql.Maintenance
             _checkInterval = checkInterval;
         }
 
-        public override string ToString() => "PostgreSql Counters Aggregation Manager";
+        public override string ToString() => "PostgreSQL Counters Aggregation Manager";
 
-        public void Execute(BackgroundProcessContext context)
-        {
-            Execute(context.CancellationToken);
-        }
+        public void Execute(BackgroundProcessContext context) => Execute(context.StoppingToken);
 
         public void Execute(CancellationToken cancellationToken)
         {
             AggregateCounters(cancellationToken);
-            cancellationToken.WaitHandle.WaitOne(_checkInterval);
+            cancellationToken.Wait(_checkInterval);
         }
 
         private void AggregateCounters(CancellationToken cancellationToken)
@@ -55,7 +54,21 @@ namespace Hangfire.PostgreSql.Maintenance
             cancellationToken.ThrowIfCancellationRequested();
             foreach (var processedCounter in ProcessedCounters)
             {
-                AggregateCounter(processedCounter);
+                DistributedLock @lock = null;
+                try
+                {
+                    @lock = new DistributedLock("counters:aggregation", TimeSpan.FromSeconds(1), _connectionProvider);
+                    AggregateCounter(processedCounter);
+                }
+                catch (DistributedLockTimeoutException)
+                {
+                    // means that someone already aggregating counters
+                }
+                finally
+                {
+                    @lock?.Dispose();
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
             }
         }
@@ -66,24 +79,25 @@ namespace Hangfire.PostgreSql.Maintenance
             using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
             {
                 const string aggregateQuery = @"
-WITH counters AS (
-DELETE FROM counter
-WHERE key = @counterName
-AND expireat IS NULL
-RETURNING *
+with aggregated_counters as (
+    delete from counter
+    where key = @counterName
+    and expireat is null
+    returning *
 )
 
-SELECT SUM(value) FROM counters;
+select sum(value) from aggregated_counters;
 ";
 
                 var aggregatedValue = connectionHolder.Connection.ExecuteScalar<long>(aggregateQuery, new { counterName }, transaction);
-                transaction.Commit();
 
                 if (aggregatedValue > 0)
                 {
-                    const string query = @"INSERT INTO counter (key, value) VALUES (@key, @value);";
-                    connectionHolder.Connection.Execute(query, new { key = counterName, value = aggregatedValue });
+                    const string query = @"insert into counter (key, value) values (@key, @value);";
+                    connectionHolder.Connection.Execute(query, new { key = counterName, value = aggregatedValue }, transaction);
                 }
+                transaction.Commit();
+
                 Logger.InfoFormat("Aggregated counter \'{0}\', value: {1}", counterName, aggregatedValue);
             }
         }

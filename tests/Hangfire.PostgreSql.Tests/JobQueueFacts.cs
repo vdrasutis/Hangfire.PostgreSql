@@ -46,25 +46,7 @@ namespace Hangfire.PostgreSql.Tests
                 Assert.Equal("queues", exception.ParamName);
             });
         }
-
-        [Fact, CleanDatabase]
-        public void Dequeue_ShouldFetchAJob_FromQueueWithHigherPriority()
-        {
-            UseConnection(connection =>
-            {
-                var queue = CreateJobQueue();
-                var token = CreateTimingOutCancellationToken();
-
-                queue.Enqueue("1", "1");
-                queue.Enqueue("2", "2");
-                queue.Enqueue("3", "3");
-
-                Assert.Equal("1", queue.Dequeue(new[] { "1", "2", "3" }, token).JobId);
-                Assert.Equal("2", queue.Dequeue(new[] { "2", "3", "1" }, token).JobId);
-                Assert.Equal("3", queue.Dequeue(new[] { "3", "1", "2" }, token).JobId);
-            });
-        }
-
+        
         [Fact, CleanDatabase]
         private void Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsEmpty()
         {
@@ -137,10 +119,10 @@ values (@jobId, @queue) returning ""id""";
         public void Dequeue_ShouldLeaveJobInTheQueue_ButSetItsFetchedAtValue()
         {
             string arrangeSql = @"
-WITH i AS (
+with i as (
 insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
 values (@invocationData, @arguments, now() at time zone 'utc')
-RETURNING ""id"")
+returning ""id"")
 insert into """ + GetSchemaName() + @""".""jobqueue"" (""jobid"", ""queue"")
 select i.""id"", @queue from i;
 ";
@@ -163,7 +145,7 @@ select i.""id"", @queue from i;
 
                 var fetchedAt = connection.Query<DateTime?>(
                     @"select ""fetchedat"" from """ + GetSchemaName() + @""".""jobqueue"" where ""jobid"" = @id",
-                    new { id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture) }).Single();
+                    new { id = JobId.ToLong(payload.JobId) }).Single();
 
                 Assert.NotNull(fetchedAt);
                 Assert.True(fetchedAt > DateTime.UtcNow.AddMinutes(-1));
@@ -174,10 +156,10 @@ select i.""id"", @queue from i;
         public void Dequeue_ShouldFetchATimedOutJobs_FromTheSpecifiedQueue()
         {
             string arrangeSql = @"
-WITH i AS (
+with i as (
 insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
 values (@invocationData, @arguments, now() at time zone 'utc')
-RETURNING ""id"")
+returning ""id"")
 insert into """ + GetSchemaName() + @""".""jobqueue"" (""jobid"", ""queue"", ""fetchedat"")
 select i.""id"", @queue, @fetchedAt from i;
 ";
@@ -210,10 +192,10 @@ select i.""id"", @queue, @fetchedAt from i;
         public void Dequeue_ShouldSetFetchedAt_OnlyForTheFetchedJob()
         {
             string arrangeSql = @"
-WITH i AS (
+with i as (
 insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
 values (@invocationData, @arguments, now() at time zone 'utc')
-RETURNING ""id"")
+returning ""id"")
 insert into """ + GetSchemaName() + @""".""jobqueue"" (""jobid"", ""queue"")
 select i.""id"", @queue from i;
 ";
@@ -237,7 +219,7 @@ select i.""id"", @queue from i;
                 // Assert
                 var otherJobFetchedAt = connection.Query<DateTime?>(
                     @"select ""fetchedat"" from """ + GetSchemaName() + @""".""jobqueue"" where ""jobid"" <> @id",
-                    new { id = Convert.ToInt32(payload.JobId, CultureInfo.InvariantCulture) }).Single();
+                    new { id = JobId.ToLong(payload.JobId) }).Single();
 
                 Assert.Null(otherJobFetchedAt);
             });
@@ -247,10 +229,10 @@ select i.""id"", @queue from i;
         public void Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues()
         {
             string arrangeSql = @"
-WITH i AS (
+with i as (
 insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
 values (@invocationData, @arguments, now() at time zone 'utc')
-RETURNING ""id"")
+returning ""id"")
 insert into """ + GetSchemaName() + @""".""jobqueue"" (""jobid"", ""queue"")
 select i.""id"", @queue from i;
 ";
@@ -273,7 +255,7 @@ select i.""id"", @queue from i;
         private void Dequeue_ShouldFetchJobs_FromMultipleQueues()
         {
             string arrangeSql = @"
-WITH i AS (
+with i as (
 insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
 values (@invocationData, @arguments, now() at time zone 'utc')
 returning ""id"")
@@ -318,7 +300,7 @@ select i.""id"", @queue from i;
             {
                 var queue = CreateJobQueue();
 
-                queue.Enqueue("default", "1");
+                queue.Enqueue("default", 1);
 
                 var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""jobqueue""").Single();
                 Assert.Equal("1", record.jobid.ToString());
