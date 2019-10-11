@@ -1,7 +1,6 @@
 ﻿using System;
 using Hangfire.Console;
 using Hangfire.PostgreSql.Tests.Integration;
-using Hangfire.PostgreSql.Tests.Utils;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -45,7 +44,7 @@ namespace Hangfire.PostgreSql.Tests.Web
                 HeartbeatInterval = TimeSpan.FromSeconds(5),
                 ServerTimeout = TimeSpan.FromSeconds(15),
                 ServerName = "Hangfire Test Server",
-                WorkerCount = 100,
+                WorkerCount = 50,
                 Queues = new[] { "queue2", "queue1", "default" }
             });
 
@@ -57,6 +56,7 @@ namespace Hangfire.PostgreSql.Tests.Web
             RecurringJob.AddOrUpdate(() => DistributedLockTest.Ctor_ActuallyGrantsExclusiveLock(), Cron.Yearly, TimeZoneInfo.Utc);
             RecurringJob.AddOrUpdate(() => DistributedLockTest.Perf_AcquiringLock_DifferentResources(), Cron.Yearly, TimeZoneInfo.Utc);
             RecurringJob.AddOrUpdate(() => DistributedLockTest.Perf_AcquiringLock_SameResource(), Cron.Yearly, TimeZoneInfo.Utc);
+            RecurringJob.AddOrUpdate(() => TestSuite.ContinuationPartC4(), Cron.Yearly, queue: "queue-does-not-exist");
         }
     }
 }
