@@ -2,29 +2,36 @@ name: Publish Nuget package
 
 on:
   release:
-    types: [published]
-    
+    types: [ published ]
+
 jobs:
   build-test-pack:
 
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-        
-    - name: Restore dependencies
-      run: dotnet restore
-      
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
-      
-    - name: Test
-      run: dotnet test --no-build --verbosity normal --configuration Release
-      
-    - name: Pack
-      run: dotnet pack ./src/Hangfire.PostgreSql/Hangfire.PostgreSql.csproj --output nupkgs --no-build --configuration Release -p:PackageVersion=${{ github.event.release.tag_name }}
-      
-    - name: Push
-      run: dotnet nuget push ./nupkgs/Hangfire.PostgreSql.ahydrax.${{ github.event.release.tag_name }}.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Setup Postgres
+        uses: harmon758/postgresql-action@v1
+        with:
+          postgresql version: '12'
+          postgresql db: hangfire_tests
+          postgresql user: hft
+          postgresql password: qwerty123
+
+      - name: Test
+        run: dotnet test --filter "Category!=Integration" --no-build --verbosity normal --configuration Release
+        env:
+          Hangfire_PostgreSql_ConnectionString: Server=localhost;Port=5432;Database=hangfire_tests;User Id=hft;Password=qwerty123;Search Path=hangfire
+
+      - name: Pack
+        run: dotnet pack ./src/Hangfire.PostgreSql/Hangfire.PostgreSql.csproj --output nupkgs --no-build --configuration Release -p:PackageVersion=${{ github.event.release.tag_name }}
+
+      - name: Push
+        run: dotnet nuget push ./nupkgs/Hangfire.PostgreSql.ahydrax.${{ github.event.release.tag_name }}.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
       

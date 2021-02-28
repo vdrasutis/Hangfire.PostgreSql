@@ -9,24 +9,24 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
     
-    - name: Restore dependencies
-      run: dotnet restore
-      
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
-      
-    - name: Setup Postgres
-      uses: harmon758/postgresql-action@v1
-      with:
-        postgresql version: '12'
-        postgresql db: hangfire_tests
-        postgresql user: hft
-        postgresql password: qwerty123
+      - name: Restore dependencies
+        run: dotnet restore
 
-    - name: Test
-      run: dotnet test --filter "Category!=Integration" --no-build --verbosity normal --configuration Release
-      env:
-        Hangfire_PostgreSql_ConnectionString: Server=localhost;Port=5432;Database=hangfire_tests;User Id=hft;Password=qwerty123;Search Path=hangfire
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Setup Postgres
+        uses: harmon758/postgresql-action@v1
+        with:
+          postgresql version: '12'
+          postgresql db: hangfire_tests
+          postgresql user: hft
+          postgresql password: qwerty123
+
+      - name: Test
+        run: dotnet test --filter "Category!=Integration" --no-build --verbosity normal --configuration Release
+        env:
+          Hangfire_PostgreSql_ConnectionString: Server=localhost;Port=5432;Database=hangfire_tests;User Id=hft;Password=qwerty123;Search Path=hangfire
