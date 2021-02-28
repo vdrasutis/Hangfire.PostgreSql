@@ -22,9 +22,9 @@ jobs:
       uses: harmon758/postgresql-action@v1
       with:
         postgresql version: '12'
-        db: hangfire_tests
-        user: hft
-        password: qwerty123
+        postgresql db: hangfire_tests
+        postgresql user: hft
+        postgresql password: qwerty123
 
     - name: Test
       run: dotnet test --no-build --verbosity normal --configuration Release
