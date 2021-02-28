@@ -1,9 +1,8 @@
 
 # Hangfire.PostgreSql
-[![Build status](https://ci.appveyor.com/api/projects/status/n05446uxa1f5sjw3?svg=true)](https://ci.appveyor.com/project/ahydrax/hangfire-postgresql)
-[![Code quality](https://sonarcloud.io/api/project_badges/measure?project=Hangfire.PostgreSql.ahydrax&metric=alert_status)](https://sonarcloud.io/dashboard?id=Hangfire.PostgreSql.ahydrax)
-[![NuGet](https://img.shields.io/nuget/v/Hangfire.PostgreSql.ahydrax.svg)](https://www.nuget.org/packages/Hangfire.PostgreSql.ahydrax/)
-[![GitHub license](https://img.shields.io/badge/license-LGPL-blue.svg?style=flat)](https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/COPYING)
+[![NuGet](https://img.shields.io/nuget/v/Hangfire.PostgreSql.ahydrax)](https://www.nuget.org/packages/Hangfire.PostgreSql.ahydrax/)
+[![NuGet](https://img.shields.io/nuget/dt/Hangfire.PostgreSql.ahydrax)](https://www.nuget.org/packages/Hangfire.PostgreSql.ahydrax/)
+[![Tests](https://github.com/ahydrax/Hangfire.PostgreSql/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/ahydrax/Hangfire.PostgreSql/actions/workflows/build-and-test.yml)
 
 This is a plugin for Hangfire to enable PostgreSql as a storage system.
 Read about hangfire here: https://github.com/HangfireIO/Hangfire#hangfire-
@@ -53,7 +52,7 @@ GlobalConfiguration.Configuration.UseDashboardMetric(PostgreSqlDashboardMetrics.
 
 ## License
 
-Copyright © 2014-2018 Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Vytautas Kasparavičius (vytautask).
+Copyright © 2014-2021 Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Vytautas Kasparavičius (vytautask).
 
 Hangfire.PostgreSql is an Open Source project licensed under the terms of the LGPLv3 license. Please see http://www.gnu.org/licenses/lgpl-3.0.html for license text or COPYING.LESSER file distributed with the source code.
 
