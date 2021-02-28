@@ -35,7 +35,7 @@ namespace Hangfire.PostgreSql.Tests.Web
             });
         }
 
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             app.UseDeveloperExceptionPage();
             app.UseHangfireServer(new BackgroundJobServerOptions

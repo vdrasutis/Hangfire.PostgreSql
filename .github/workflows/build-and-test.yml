@@ -1,4 +1,4 @@
-name: Tests
+name: Build and test
 on:
   push:
     branches: [ master ]
@@ -18,5 +18,15 @@ jobs:
     - name: Build
       run: dotnet build --no-restore --configuration Release
       
+    - name: Setup Postgres
+      uses: harmon758/postgresql-action@v1
+      with:
+        postgresql version: '12'
+        db: hangfire_tests
+        user: hft
+        password: qwerty123
+
     - name: Test
       run: dotnet test --no-build --verbosity normal --configuration Release
+      env:
+        Hangfire_PostgreSql_ConnectionString: Server=localhost;Port=5432;Database=hangfire_tests;User Id=hft;Password=qwerty123;Search Path=hangfire
