@@ -15,6 +15,9 @@ jobs:
 
       - name: Restore dependencies
         run: dotnet restore
+        
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
 
       - name: Setup Postgres
         uses: harmon758/postgresql-action@v1
