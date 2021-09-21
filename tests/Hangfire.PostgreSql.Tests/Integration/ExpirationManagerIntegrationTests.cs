@@ -1,26 +1,22 @@
 ﻿using System;
-using System.Globalization;
-using System.Linq;
 using System.Threading;
-using Dapper;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Maintenance;
-using Hangfire.PostgreSql.Tests.Utils;
-using Npgsql;
+using Hangfire.PostgreSql.Tests.Setup;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Integration
 {
-    public class ExpirationManagerFacts
+    public class ExpirationManagerIntegrationTests : StorageContextBasedTests<ExpirationManagerIntegrationTests>
     {
-        private readonly IConnectionProvider _connectionProvider;
         private readonly ExpirationManager _expirationManager;
         private readonly CancellationTokenSource _tokenSource;
 
-        public ExpirationManagerFacts()
+        public ExpirationManagerIntegrationTests(StorageContext<ExpirationManagerIntegrationTests> storageContext, ITestOutputHelper testOutputHelper) : base(storageContext,
+            testOutputHelper)
         {
-            _connectionProvider = ConnectionUtils.GetConnectionProvider();
-            _expirationManager = new ExpirationManager(_connectionProvider, TimeSpan.FromMilliseconds(1));
+            _expirationManager = new ExpirationManager(ConnectionProvider, TimeSpan.FromMilliseconds(1));
             _tokenSource = new CancellationTokenSource();
         }
 
@@ -35,17 +31,17 @@ namespace Hangfire.PostgreSql.Tests
         public void Ctor_ThrowsAnException_WhenCheckIntervalIsZero()
         {
             Assert.Throws<ArgumentException>(
-                () => new ExpirationManager(_connectionProvider, TimeSpan.Zero));
+                () => new ExpirationManager(ConnectionProvider, TimeSpan.Zero));
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenCheckIntervalIsNegative()
         {
             Assert.Throws<ArgumentException>(
-                () => new ExpirationManager(_connectionProvider, TimeSpan.FromSeconds(-1)));
+                () => new ExpirationManager(ConnectionProvider, TimeSpan.FromSeconds(-1)));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Execute_RemovesOutdatedRecords()
         {
             // Arrange
@@ -55,11 +51,11 @@ namespace Hangfire.PostgreSql.Tests
             _expirationManager.Execute(_tokenSource.Token);
 
             // Assert
-            var recordsCount = _connectionProvider.FetchScalar<int>("select count(*) from counter");
+            var recordsCount = ConnectionProvider.FetchScalar<int>("select count(*) from counter");
             Assert.Equal(0, recordsCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Execute_DoesNotRemoveEntries_WithNoExpirationTimeSet()
         {
             // Arrange
@@ -69,11 +65,11 @@ namespace Hangfire.PostgreSql.Tests
             _expirationManager.Execute(_tokenSource.Token);
 
             // Assert
-            var recordsCount = _connectionProvider.FetchScalar<int>("select count(*) from counter");
+            var recordsCount = ConnectionProvider.FetchScalar<int>("select count(*) from counter");
             Assert.Equal(1, recordsCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Execute_DoesNotRemoveEntries_WithFreshExpirationTime()
         {
             // Arrange
@@ -83,11 +79,11 @@ namespace Hangfire.PostgreSql.Tests
             _expirationManager.Execute(_tokenSource.Token);
 
             // Assert
-            var recordsCount = _connectionProvider.FetchScalar<int>("select count(*) from counter");
+            var recordsCount = ConnectionProvider.FetchScalar<int>("select count(*) from counter");
             Assert.Equal(1, recordsCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Execute_Processes_CounterTable()
         {
             // Arrange
@@ -97,7 +93,7 @@ namespace Hangfire.PostgreSql.Tests
             _expirationManager.Execute(_tokenSource.Token);
 
             // Assert
-            var recordsCount = _connectionProvider.FetchScalar<int>("select count(*) from counter");
+            var recordsCount = ConnectionProvider.FetchScalar<int>("select count(*) from counter");
             Assert.Equal(0, recordsCount);
         }
 
@@ -107,74 +103,74 @@ namespace Hangfire.PostgreSql.Tests
 insert into counter(key, value, expireat)
 values ('key', 1, @expireat)";
 
-            _connectionProvider.Execute(query, new { expireat = expireAt });
+            ConnectionProvider.Execute(query, new { expireat = expireAt });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Execute_Processes_JobTable()
         {
             // Arrange
             const string query = @"
 insert into job (invocationdata, arguments, createdat, expireat) 
 values ('', '', now() at time zone 'utc', @expireAt)";
-            _connectionProvider.Execute(query, new { expireAt = DateTime.UtcNow.AddDays(-1) });
+            ConnectionProvider.Execute(query, new { expireAt = DateTime.UtcNow.AddDays(-1) });
 
             // Act
             _expirationManager.Execute(_tokenSource.Token);
 
             // Assert
-            var recordsCount = _connectionProvider.FetchScalar<int>("select count(*) from job");
+            var recordsCount = ConnectionProvider.FetchScalar<int>("select count(*) from job");
             Assert.Equal(0, recordsCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Execute_Processes_ListTable()
         {
             // Arrange
             const string query = @"
 insert into list (key, expireat) 
 values ('key', @expireAt)";
-            _connectionProvider.Execute(query, new { expireAt = DateTime.UtcNow.AddDays(-1) });
+            ConnectionProvider.Execute(query, new { expireAt = DateTime.UtcNow.AddDays(-1) });
 
             // Act
             _expirationManager.Execute(_tokenSource.Token);
 
             // Assert
-            var recordsCount = _connectionProvider.FetchScalar<int>("select count(*) from list");
+            var recordsCount = ConnectionProvider.FetchScalar<int>("select count(*) from list");
             Assert.Equal(0, recordsCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Execute_Processes_SetTable()
         {
             // Arrange
             const string query = @"
 insert into set (key, score, value, expireat) 
 values ('key', 0, '', @expireAt)";
-            _connectionProvider.Execute(query, new { expireAt = DateTime.UtcNow.AddDays(-1) });
+            ConnectionProvider.Execute(query, new { expireAt = DateTime.UtcNow.AddDays(-1) });
 
             // Act
             _expirationManager.Execute(_tokenSource.Token);
 
             // Assert
-            var recordsCount = _connectionProvider.FetchScalar<int>("select count(*) from set");
+            var recordsCount = ConnectionProvider.FetchScalar<int>("select count(*) from set");
             Assert.Equal(0, recordsCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Execute_Processes_HashTable()
         {
             // Arrange
             const string query = @"
 insert into hash (key, field, value, expireat) 
 values ('key', 'field', '', @expireAt)";
-            _connectionProvider.Execute(query, new { expireAt = DateTime.UtcNow.AddDays(-1) });
+            ConnectionProvider.Execute(query, new { expireAt = DateTime.UtcNow.AddDays(-1) });
 
             // Act
             _expirationManager.Execute(_tokenSource.Token);
 
             // Assert
-            var recordsCount = _connectionProvider.FetchScalar<int>("select count(*) from set");
+            var recordsCount = ConnectionProvider.FetchScalar<int>("select count(*) from set");
             Assert.Equal(0, recordsCount);
         }
     }

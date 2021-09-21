@@ -108,8 +108,8 @@ namespace Hangfire.PostgreSql.Tests.Web
         {
             var bjc = new BackgroundJobClient(JobStorage.Current);
 
-            const int tasksPerBatch = 1000;
-            const int parallelRuns = 50;
+            const int tasksPerBatch = 5000;
+            const int parallelRuns = 10;
 
             Parallel.For(0, parallelRuns, new ParallelOptions { MaxDegreeOfParallelism = parallelRuns }, i =>
             {

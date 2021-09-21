@@ -1,18 +1,18 @@
 ﻿using System;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Queueing;
-using Hangfire.PostgreSql.Tests.Utils;
+using Hangfire.PostgreSql.Tests.Setup;
 using Moq;
 using Npgsql;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Integration
 {
-    public class JobQueueFacts
+    public class JobQueueIntegrationTests : StorageContextBasedTests<JobQueueIntegrationTests>
     {
         private static readonly string[] DefaultQueues = { "default" };
 
@@ -34,7 +34,7 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal("options", exception.ParamName);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsNull()
         {
             UseConnection(connection =>
@@ -48,7 +48,7 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
         
-        [Fact, CleanDatabase]
+        [Fact]
         private void Dequeue_ShouldThrowAnException_WhenQueuesCollectionIsEmpty()
         {
             UseConnection(connection =>
@@ -76,7 +76,7 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Dequeue_ShouldWaitIndefinitely_WhenThereAreNoJobs()
         {
             UseConnection(connection =>
@@ -89,7 +89,7 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Dequeue_ShouldFetchAJob_FromTheSpecifiedQueue()
         {
             string arrangeSql = @"
@@ -116,7 +116,7 @@ values (@jobId, @queue) returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Dequeue_ShouldLeaveJobInTheQueue_ButSetItsFetchedAtValue()
         {
             string arrangeSql = @"
@@ -153,7 +153,7 @@ select i.""id"", @queue from i;
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Dequeue_ShouldFetchATimedOutJobs_FromTheSpecifiedQueue()
         {
             string arrangeSql = @"
@@ -189,7 +189,7 @@ select i.""id"", @queue, @fetchedAt from i;
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Dequeue_ShouldSetFetchedAt_OnlyForTheFetchedJob()
         {
             string arrangeSql = @"
@@ -226,7 +226,7 @@ select i.""id"", @queue from i;
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Dequeue_ShouldFetchJobs_OnlyFromSpecifiedQueues()
         {
             string arrangeSql = @"
@@ -252,7 +252,7 @@ select i.""id"", @queue from i;
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         private void Dequeue_ShouldFetchJobs_FromMultipleQueues()
         {
             string arrangeSql = @"
@@ -294,7 +294,7 @@ select i.""id"", @queue from i;
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Enqueue_AddsAJobToTheQueue()
         {
             UseConnection(connection =>
@@ -316,24 +316,23 @@ select i.""id"", @queue from i;
             return source.Token;
         }
 
-        private static JobQueue CreateJobQueue()
+        private JobQueue CreateJobQueue()
         {
-            var provider = ConnectionUtils.GetConnectionProvider();
+            var provider = ConnectionProvider;
             return new JobQueue(provider, new PostgreSqlStorageOptions());
         }
 
-        private static void UseConnection(Action<NpgsqlConnection> connectionSetup)
+        private void UseConnection(Action<NpgsqlConnection> connectionSetup)
         {
-            var provider = ConnectionUtils.GetConnectionProvider();
+            var provider = ConnectionProvider;
             using (var connection = provider.AcquireConnection())
             {
                 connectionSetup(connection.Connection);
             }
         }
 
-        private static string GetSchemaName()
-        {
-            return ConnectionUtils.GetSchemaName();
-        }
+        private string GetSchemaName() => StorageContext.SchemaName;
+
+        public JobQueueIntegrationTests(StorageContext<JobQueueIntegrationTests> storageContext, ITestOutputHelper testOutputHelper) : base(storageContext, testOutputHelper) { }
     }
 }

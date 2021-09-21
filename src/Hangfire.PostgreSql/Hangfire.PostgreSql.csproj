@@ -1,55 +1,58 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <!--Package info and copyright-->
-    <PackageId>Hangfire.PostgreSql.ahydrax</PackageId>
-    <PackageTags>Hangfire;PostgreSql;PostgreSQL;Postgres;postgre</PackageTags>
-    <PackageReleaseNotes>https://github.com/ahydrax/Hangfire.PostgreSql/releases</PackageReleaseNotes>
-    <PackageProjectUrl>https://github.com/ahydrax/Hangfire.PostgreSql</PackageProjectUrl>
-    <PackageLicense>https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/LICENSE.md</PackageLicense>
-    <AssemblyTitle>Hangfire PostgreSQL Storage</AssemblyTitle>
-    <Description>PostgreSQL storage implementation for Hangfire (background job system for ASP.NET applications).</Description>
-    <Copyright>Copyright © 2014-2021 Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Copyright>
-    <Authors>Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Authors>
-    <Company>Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Company>
-  </PropertyGroup>
+    <PropertyGroup>
+        <!--Package info and copyright-->
+        <PackageId>Hangfire.PostgreSql.ahydrax</PackageId>
+        <PackageTags>Hangfire;PostgreSql;PostgreSQL;Postgres;postgre</PackageTags>
+        <PackageReleaseNotes>https://github.com/ahydrax/Hangfire.PostgreSql/releases</PackageReleaseNotes>
+        <PackageProjectUrl>https://github.com/ahydrax/Hangfire.PostgreSql</PackageProjectUrl>
+        <PackageLicense>https://raw.githubusercontent.com/ahydrax/Hangfire.PostgreSql/master/LICENSE.md</PackageLicense>
+        <AssemblyTitle>Hangfire PostgreSQL Storage</AssemblyTitle>
+        <Description>PostgreSQL storage implementation for Hangfire (background job system for ASP.NET applications).</Description>
+        <Copyright>Copyright © 2014-2021 Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Copyright>
+        <Authors>Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Authors>
+        <Company>Frank Hommers, Burhan Irmikci (barhun), Zachary Sims(zsims), kgamecarter, Stafford Williams (staff0rd), briangweber, Viktor Svyatokha (ahydrax), Christopher Dresel (Dresel), Ben Herila (bherila), Vytautas Kasparavičius (vytautask)</Company>
+    </PropertyGroup>
 
-  <PropertyGroup>
-    <!--Build properties-->
-    <AssemblyName>Hangfire.PostgreSql</AssemblyName>
-    <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
-    <OutputType>Library</OutputType>
-    <NeutralLanguage>en</NeutralLanguage>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
+    <PropertyGroup>
+        <!--Build properties-->
+        <AssemblyName>Hangfire.PostgreSql</AssemblyName>
+        <TargetFrameworks>netstandard2.0;net462</TargetFrameworks>
+        <LangVersion>8.0</LangVersion>
+        <OutputType>Library</OutputType>
+        <NeutralLanguage>en</NeutralLanguage>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <None Remove="Schema\Install.v10.sql" />
-    <None Remove="Schema\Install.v11.sql" />
-    <None Remove="Schema\Install.v12.sql" />
-    <None Remove="Schema\Install.v3.sql" />
-    <None Remove="Schema\Install.v4.sql" />
-    <None Remove="Schema\Install.v5.sql" />
-    <None Remove="Schema\Install.v6.sql" />
-    <None Remove="Schema\Install.v7.sql" />
-  </ItemGroup>
+    <ItemGroup>
+        <None Remove="Schema\Install.v10.sql" />
+        <None Remove="Schema\Install.v11.sql" />
+        <None Remove="Schema\Install.v12.sql" />
+        <None Remove="Schema\Install.v3.sql" />
+        <None Remove="Schema\Install.v4.sql" />
+        <None Remove="Schema\Install.v5.sql" />
+        <None Remove="Schema\Install.v6.sql" />
+        <None Remove="Schema\Install.v7.sql" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="Schema\Install.v12.sql" />
-    <EmbeddedResource Include="Schema\Install.v11.sql" />
-    <EmbeddedResource Include="Schema\Install.v10.sql" />
-    <EmbeddedResource Include="Schema\Install.v9.sql" />
-    <EmbeddedResource Include="Schema\Install.v3.sql" />
-    <EmbeddedResource Include="Schema\Install.v4.sql" />
-    <EmbeddedResource Include="Schema\Install.v5.sql" />
-    <EmbeddedResource Include="Schema\Install.v6.sql" />
-    <EmbeddedResource Include="Schema\Install.v7.sql" />
-    <EmbeddedResource Include="Schema\Install.v8.sql" Exclude="bin\**;obj\**;**\*.xproj;packages\**;@(EmbeddedResource)" />
-  </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Schema\Install.v12.sql" />
+        <EmbeddedResource Include="Schema\Install.v11.sql" />
+        <EmbeddedResource Include="Schema\Install.v10.sql" />
+        <EmbeddedResource Include="Schema\Install.v13.sql" />
+        <EmbeddedResource Include="Schema\Install.v9.sql" />
+        <EmbeddedResource Include="Schema\Install.v3.sql" />
+        <EmbeddedResource Include="Schema\Install.v4.sql" />
+        <EmbeddedResource Include="Schema\Install.v5.sql" />
+        <EmbeddedResource Include="Schema\Install.v6.sql" />
+        <EmbeddedResource Include="Schema\Install.v7.sql" />
+        <EmbeddedResource Include="Schema\Install.v8.sql" Exclude="bin\**;obj\**;**\*.xproj;packages\**;@(EmbeddedResource)" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.0.78" />
-    <PackageReference Include="Hangfire.Core" Version="1.7.19" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="Npgsql" Version="5.0.3" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Dapper" Version="[2.0.78, 2.1)" />
+        <PackageReference Include="Dapper.SqlBuilder" Version="[2.0.78, 2.1)" />
+        <PackageReference Include="Hangfire.Core" Version="[1.7.19, 1.8)" />
+        <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+        <PackageReference Include="Npgsql" Version="[5.0, 6.0)" />
+    </ItemGroup>
 </Project>

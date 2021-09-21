@@ -5,16 +5,19 @@ using System.Globalization;
 using System.Linq;
 using Dapper;
 using Hangfire.PostgreSql.Connectivity;
-using Hangfire.PostgreSql.Tests.Utils;
+using Hangfire.PostgreSql.Tests.Setup;
 using Hangfire.States;
 using Moq;
 using Npgsql;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Integration
 {
-    public class WriteOnlyTransactionFacts
+    public class WriteOnlyTransactionIntegrationTests : StorageContextBasedTests<WriteOnlyTransactionIntegrationTests>
     {
+        public WriteOnlyTransactionIntegrationTests(StorageContext<WriteOnlyTransactionIntegrationTests> storageContext, ITestOutputHelper testOutputHelper) : base(storageContext, testOutputHelper) { }
+
         [Fact]
         public void Ctor_ThrowsAnException_IfConnectionIsNull()
         {
@@ -24,7 +27,7 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal("connectionProvider", exception.ParamName);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void ExpireJob_SetsJobExpirationData()
         {
             const string arrangeSql = @"
@@ -33,7 +36,7 @@ values ('', '', now() at time zone 'utc') returning id";
 
             UseConnection((provider, connection) =>
             {
-                var utcNow = DateTime.UtcNow;
+                var nextDay = DateTime.UtcNow + TimeSpan.FromDays(1);
 
                 var jobId = connection.Query(arrangeSql).Single().id.ToString();
                 var anotherJobId = connection.Query(arrangeSql).Single().id.ToString();
@@ -41,20 +44,21 @@ values ('', '', now() at time zone 'utc') returning id";
                 Commit(provider, x => x.ExpireJob(jobId, TimeSpan.FromDays(1)));
 
                 var job = GetTestJob(connection, jobId);
-                Assert.True(job.expireat >= utcNow.AddDays(1));
+                TimeSpan delta = job.expireat - nextDay;
+                Assert.True(delta.Duration() <= TimeSpan.FromMinutes(10));
 
                 var anotherJob = GetTestJob(connection, anotherJobId);
                 Assert.Null(anotherJob.expireat);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void PersistJob_ClearsTheJobExpirationData()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"", ""expireat"")
-values ('', '', now() at time zone 'utc', now() at time zone 'utc') returning ""id""";
-
+            const string arrangeSql = @"
+insert into job (invocationdata, arguments, createdat, expireat)
+values ('', '', now() at time zone 'utc', now() at time zone 'utc') 
+returning id";
 
             UseConnection((provider, connection) =>
             {
@@ -71,12 +75,13 @@ values ('', '', now() at time zone 'utc', now() at time zone 'utc') returning ""
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetJobState_AppendsAStateAndSetItToTheJob()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
-values ('', '', now() at time zone 'utc') returning ""id""";
+            const string arrangeSql = @"
+insert into job (invocationdata, arguments, createdat)
+values ('', '', now() at time zone 'utc') 
+returning id";
 
             UseConnection((provider, connection) =>
             {
@@ -99,7 +104,7 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 Assert.Null(anotherJob.statename);
                 Assert.Null(anotherJob.stateid);
 
-                var jobState = connection.Query(@"select * from """ + GetSchemaName() + @""".""state""").Single();
+                var jobState = connection.Query(@"select * from state").Single();
                 Assert.Equal((string)jobId, jobState.jobid.ToString());
                 Assert.Equal("State", jobState.name);
                 Assert.Equal("Reason", jobState.reason);
@@ -108,13 +113,13 @@ values ('', '', now() at time zone 'utc') returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddJobState_JustAddsANewRecordInATable()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
+            const string arrangeSql = @"
+insert into job (invocationdata, arguments, createdat)
 values ('', '', now() at time zone 'utc')
-returning ""id""";
+returning id";
 
             UseConnection((provider, connection) =>
             {
@@ -132,7 +137,7 @@ returning ""id""";
                 Assert.Null(job.StateName);
                 Assert.Null(job.StateId);
 
-                var jobState = connection.Query(@"select * from """ + GetSchemaName() + @""".""state""").Single();
+                var jobState = connection.Query(@"select * from state").Single();
                 Assert.Equal((string)jobId, jobState.jobid.ToString(CultureInfo.InvariantCulture));
                 Assert.Equal("State", jobState.name);
                 Assert.Equal("Reason", jobState.reason);
@@ -141,7 +146,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddToQueue_InsertsJobIdToQueue()
         {
             UseConnection((provider, connection) =>
@@ -161,14 +166,14 @@ returning ""id""";
                 .Single();
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void IncrementCounter_AddsRecordToCounterTable_WithPositiveValue()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.IncrementCounter("my-key"));
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""counter""").Single();
+                var record = connection.Query(@"select * from counter").Single();
 
                 Assert.Equal("my-key", record.key);
                 Assert.Equal(1, record.value);
@@ -176,14 +181,14 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void IncrementCounter_WithExpiry_AddsARecord_WithExpirationTimeSet()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.IncrementCounter("my-key", TimeSpan.FromDays(1)));
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""counter""").Single();
+                var record = connection.Query(@"select * from counter").Single();
 
                 Assert.Equal("my-key", record.key);
                 Assert.Equal(1, record.value);
@@ -196,7 +201,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void IncrementCounter_WithExistingKey_AddsAnotherRecord()
         {
             UseConnection((provider, connection) =>
@@ -207,21 +212,21 @@ returning ""id""";
                     x.IncrementCounter("my-key");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""counter""")
+                var recordCount = connection.Query<long>(@"select count(*) from counter")
                     .Single();
 
                 Assert.Equal(2, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void DecrementCounter_AddsRecordToCounterTable_WithNegativeValue()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.DecrementCounter("my-key"));
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""counter""").Single();
+                var record = connection.Query(@"select * from counter").Single();
 
                 Assert.Equal("my-key", record.key);
                 Assert.Equal(-1, record.value);
@@ -229,14 +234,14 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void DecrementCounter_WithExpiry_AddsARecord_WithExpirationTimeSet()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.DecrementCounter("my-key", TimeSpan.FromDays(1)));
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""counter""").Single();
+                var record = connection.Query(@"select * from counter").Single();
 
                 Assert.Equal("my-key", record.key);
                 Assert.Equal(-1, record.value);
@@ -249,7 +254,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void DecrementCounter_WithExistingKey_AddsAnotherRecord()
         {
             UseConnection((provider, connection) =>
@@ -260,21 +265,21 @@ returning ""id""";
                     x.DecrementCounter("my-key");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""counter""")
+                var recordCount = connection.Query<long>(@"select count(*) from counter")
                     .Single();
 
                 Assert.Equal(2, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddToSet_AddsARecord_IfThereIsNo_SuchKeyAndValue()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.AddToSet("my-key", "my-value"));
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""set""").Single();
+                var record = connection.Query(@"select * from set").Single();
 
                 Assert.Equal("my-key", record.key);
                 Assert.Equal("my-value", record.value);
@@ -282,7 +287,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddToSet_AddsARecord_WhenKeyIsExists_ButValuesAreDifferent()
         {
             UseConnection((provider, connection) =>
@@ -293,14 +298,14 @@ returning ""id""";
                     x.AddToSet("my-key", "another-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""set""")
+                var recordCount = connection.Query<long>(@"select count(*) from set")
                     .Single();
 
                 Assert.Equal(2, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddToSet_DoesNotAddARecord_WhenBothKeyAndValueAreExist()
         {
             UseConnection((provider, connection) =>
@@ -311,21 +316,21 @@ returning ""id""";
                     x.AddToSet("my-key", "my-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""set""")
+                var recordCount = connection.Query<long>(@"select count(*) from set")
                     .Single();
 
                 Assert.Equal(1, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddToSet_WithScore_AddsARecordWithScore_WhenBothKeyAndValueAreNotExist()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.AddToSet("my-key", "my-value", 3.2));
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""set""").Single();
+                var record = connection.Query(@"select * from set").Single();
 
                 Assert.Equal("my-key", record.key);
                 Assert.Equal("my-value", record.value);
@@ -333,7 +338,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddToSet_WithScore_UpdatesAScore_WhenBothKeyAndValueAreExist()
         {
             UseConnection((provider, connection) =>
@@ -344,13 +349,13 @@ returning ""id""";
                     x.AddToSet("my-key", "my-value", 3.2);
                 });
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""set""").Single();
+                var record = connection.Query(@"select * from set").Single();
 
                 Assert.Equal(3.2, record.score, 3);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveFromSet_RemovesARecord_WithGivenKeyAndValue()
         {
             UseConnection((provider, connection) =>
@@ -361,14 +366,14 @@ returning ""id""";
                     x.RemoveFromSet("my-key", "my-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""set""")
+                var recordCount = connection.Query<long>(@"select count(*) from set")
                     .Single();
 
                 Assert.Equal(0, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveFromSet_DoesNotRemoveRecord_WithSameKey_AndDifferentValue()
         {
             UseConnection((provider, connection) =>
@@ -379,14 +384,14 @@ returning ""id""";
                     x.RemoveFromSet("my-key", "different-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""set""")
+                var recordCount = connection.Query<long>(@"select count(*) from set")
                     .Single();
 
                 Assert.Equal(1, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveFromSet_DoesNotRemoveRecord_WithSameValue_AndDifferentKey()
         {
             UseConnection((provider, connection) =>
@@ -397,28 +402,28 @@ returning ""id""";
                     x.RemoveFromSet("different-key", "my-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""set""")
+                var recordCount = connection.Query<long>(@"select count(*) from set")
                     .Single();
 
                 Assert.Equal(1, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void InsertToList_AddsARecord_WithGivenValues()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.InsertToList("my-key", "my-value"));
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""list""").Single();
+                var record = connection.Query(@"select * from list").Single();
 
                 Assert.Equal("my-key", record.key);
                 Assert.Equal("my-value", record.value);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void InsertToList_AddsAnotherRecord_WhenBothKeyAndValueAreExist()
         {
             UseConnection((provider, connection) =>
@@ -429,14 +434,14 @@ returning ""id""";
                     x.InsertToList("my-key", "my-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""list""")
+                var recordCount = connection.Query<long>(@"select count(*) from list")
                     .Single();
 
                 Assert.Equal(2, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveFromList_RemovesAllRecords_WithGivenKeyAndValue()
         {
             UseConnection((provider, connection) =>
@@ -448,14 +453,14 @@ returning ""id""";
                     x.RemoveFromList("my-key", "my-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""list""")
+                var recordCount = connection.Query<long>(@"select count(*) from list")
                     .Single();
 
                 Assert.Equal(0, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveFromList_DoesNotRemoveRecords_WithSameKey_ButDifferentValue()
         {
             UseConnection((provider, connection) =>
@@ -466,14 +471,14 @@ returning ""id""";
                     x.RemoveFromList("my-key", "different-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""list""")
+                var recordCount = connection.Query<long>(@"select count(*) from list")
                     .Single();
 
                 Assert.Equal(1, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveFromList_DoesNotRemoveRecords_WithSameValue_ButDifferentKey()
         {
             UseConnection((provider, connection) =>
@@ -484,14 +489,14 @@ returning ""id""";
                     x.RemoveFromList("different-key", "my-value");
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""list""")
+                var recordCount = connection.Query<long>(@"select count(*) from list")
                     .Single();
 
                 Assert.Equal(1, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void TrimList_TrimsAList_ToASpecifiedRange()
         {
             UseConnection((provider, connection) =>
@@ -505,7 +510,7 @@ returning ""id""";
                     x.TrimList("my-key", 1, 2);
                 });
 
-                var records = connection.Query(@"select * from """ + GetSchemaName() + @""".""list""").ToArray();
+                var records = connection.Query(@"select * from list").ToArray();
 
                 Assert.Equal(2, records.Length);
                 Assert.Equal("1", records[0].value);
@@ -513,7 +518,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void TrimList_RemovesRecordsToEnd_IfKeepAndingAt_GreaterThanMaxElementIndex()
         {
             UseConnection((provider, connection) =>
@@ -526,14 +531,14 @@ returning ""id""";
                     x.TrimList("my-key", 1, 100);
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""list""")
+                var recordCount = connection.Query<long>(@"select count(*) from list")
                     .Single();
 
                 Assert.Equal(2, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void TrimList_RemovesAllRecords_WhenStartingFromValue_GreaterThanMaxElementIndex()
         {
             UseConnection((provider, connection) =>
@@ -544,14 +549,14 @@ returning ""id""";
                     x.TrimList("my-key", 1, 100);
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""list""")
+                var recordCount = connection.Query<long>(@"select count(*) from list")
                     .Single();
 
                 Assert.Equal(0, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void TrimList_RemovesAllRecords_IfStartFromGreaterThanEndingAt()
         {
             UseConnection((provider, connection) =>
@@ -562,14 +567,14 @@ returning ""id""";
                     x.TrimList("my-key", 1, 0);
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""list""")
+                var recordCount = connection.Query<long>(@"select count(*) from list")
                     .Single();
 
                 Assert.Equal(0, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void TrimList_RemovesRecords_OnlyOfAGivenKey()
         {
             UseConnection((provider, connection) =>
@@ -580,14 +585,14 @@ returning ""id""";
                     x.TrimList("another-key", 1, 0);
                 });
 
-                var recordCount = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""list""")
+                var recordCount = connection.Query<long>(@"select count(*) from list")
                     .Single();
 
                 Assert.Equal(1, recordCount);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetRangeInHash_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -599,7 +604,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetRangeInHash_ThrowsAnException_WhenKeyValuePairsArgumentIsNull()
         {
             UseConnection((provider, connection) =>
@@ -611,14 +616,14 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetRangeInHash_CanSetANullValue()
         {
             UseConnection((provider, connection) =>
             {
                 Commit(provider, x => x.SetRangeInHash("some-hash", new Dictionary<string, string>
                 {
-                    { "Key1", null }
+                    { "Key1", null! }
                 }));
 
                 var result = connection.Query<(string field, string value)>(
@@ -630,7 +635,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetRangeInHash_MergesAllRecords()
         {
             UseConnection((provider, connection) =>
@@ -642,7 +647,7 @@ returning ""id""";
                 }));
 
                 var result = connection.Query(
-                        @"select * from """ + GetSchemaName() + @""".""hash"" where ""key"" = @key",
+                        @"select * from hash where key = @key",
                         new { key = "some-hash" })
                     .ToDictionary(x => (string)x.field, x => (string)x.value);
 
@@ -651,7 +656,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveHash_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -661,7 +666,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveHash_RemovesAllHashRecords()
         {
             UseConnection((provider, connection) =>
@@ -677,12 +682,12 @@ returning ""id""";
                 Commit(provider, x => x.RemoveHash("some-hash"));
 
                 // Assert
-                var count = connection.Query<long>(@"select count(*) from """ + GetSchemaName() + @""".""hash""").Single();
+                var count = connection.Query<long>(@"select count(*) from hash").Single();
                 Assert.Equal(0, count);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddRangeToSet_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -694,7 +699,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddRangeToSet_ThrowsAnException_WhenItemsValueIsNull()
         {
             UseConnection((provider, connection) =>
@@ -706,7 +711,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AddRangeToSet_AddsAllItems_ToAGivenSet()
         {
             UseConnection((provider, connection) =>
@@ -715,13 +720,12 @@ returning ""id""";
 
                 Commit(provider, x => x.AddRangeToSet("my-set", items));
 
-                var records = connection.Query<string>(@"select ""value"" from """ + GetSchemaName() +
-                                                @""".""set"" where ""key"" = 'my-set'");
+                var records = connection.Query<string>(@"select value from set where key = 'my-set'");
                 Assert.Equal(items, records);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveSet_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -731,11 +735,10 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveSet_RemovesASet_WithAGivenKey()
         {
-            string arrangeSql = @"insert into """ + GetSchemaName() +
-                                @""".""set"" (""key"", ""value"", ""score"") values (@key, @value, 0.0)";
+            const string arrangeSql = @"insert into set (key, value, score) values (@key, @value, 0.0)";
 
             UseConnection((provider, connection) =>
             {
@@ -747,12 +750,12 @@ returning ""id""";
 
                 Commit(provider, x => x.RemoveSet("set-1"));
 
-                var record = connection.Query(@"select * from """ + GetSchemaName() + @""".""set""").Single();
+                var record = connection.Query(@"select * from set").Single();
                 Assert.Equal("set-2", record.key);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void ExpireHash_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -764,11 +767,10 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void ExpireHash_SetsExpirationTimeOnAHash_WithGivenKey()
         {
-            string arrangeSql = @"insert into """ + GetSchemaName() +
-                                @""".hash (""key"", ""field"") values (@key, @field)";
+            string arrangeSql = @"insert into hash (key, field) values (@key, @field)";
 
             UseConnection((provider, connection) =>
             {
@@ -783,7 +785,7 @@ returning ""id""";
                 Commit(provider, x => x.ExpireHash("hash-1", TimeSpan.FromMinutes(60)));
 
                 // Assert
-                var records = connection.Query(@"select * from """ + GetSchemaName() + @""".hash")
+                var records = connection.Query(@"select * from hash")
                     .ToDictionary(x => (string)x.key, x => (DateTime?)x.expireat);
                 Assert.True(DateTime.UtcNow.AddMinutes(59) < records["hash-1"]);
                 Assert.True(records["hash-1"] < DateTime.UtcNow.AddMinutes(61));
@@ -791,7 +793,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void ExpireSet_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -803,11 +805,10 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void ExpireSet_SetsExpirationTime_OnASet_WithGivenKey()
         {
-            string arrangeSql = @"insert into """ + GetSchemaName() +
-                                @""".""set"" (""key"", ""value"", ""score"") values (@key, @value, 0.0)";
+            string arrangeSql = @"insert into set (key, value, score) values (@key, @value, 0.0)";
 
             UseConnection((provider, connection) =>
             {
@@ -822,7 +823,7 @@ returning ""id""";
                 Commit(provider, x => x.ExpireSet("set-1", TimeSpan.FromMinutes(60)));
 
                 // Assert
-                var records = connection.Query(@"select * from """ + GetSchemaName() + @""".""set""")
+                var records = connection.Query(@"select * from set")
                     .ToDictionary(x => (string)x.key, x => (DateTime?)x.expireat);
                 Assert.True(DateTime.UtcNow.AddMinutes(59) < records["set-1"]);
                 Assert.True(records["set-1"] < DateTime.UtcNow.AddMinutes(61));
@@ -830,7 +831,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void ExpireList_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -842,10 +843,10 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void ExpireList_SetsExpirationTime_OnAList_WithGivenKey()
         {
-            string arrangeSql = @"insert into """ + GetSchemaName() + @""".""list"" (""key"") values (@key)";
+            string arrangeSql = @"insert into list (key) values (@key)";
 
             UseConnection((provider, connection) =>
             {
@@ -860,7 +861,7 @@ returning ""id""";
                 Commit(provider, x => x.ExpireList("list-1", TimeSpan.FromMinutes(60)));
 
                 // Assert
-                var records = connection.Query(@"select * from """ + GetSchemaName() + @""".""list""")
+                var records = connection.Query(@"select * from list")
                     .ToDictionary(x => (string)x.key, x => (DateTime?)x.expireat);
                 Assert.True(DateTime.UtcNow.AddMinutes(59) < records["list-1"]);
                 Assert.True(records["list-1"] < DateTime.UtcNow.AddMinutes(61));
@@ -868,7 +869,7 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void PersistHash_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -880,11 +881,10 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void PersistHash_ClearsExpirationTime_OnAGivenHash()
         {
-            string arrangeSql = @"insert into """ + GetSchemaName() +
-                                @""".hash (""key"", ""field"", ""expireat"") values (@key, @field, @expireAt)";
+            string arrangeSql = @"insert into hash (key, field, expireat) values (@key, @field, @expireAt)";
 
             UseConnection((provider, connection) =>
             {
@@ -899,14 +899,14 @@ returning ""id""";
                 Commit(provider, x => x.PersistHash("hash-1"));
 
                 // Assert
-                var records = connection.Query(@"select * from """ + GetSchemaName() + @""".hash")
+                var records = connection.Query(@"select * from hash")
                     .ToDictionary(x => (string)x.key, x => (DateTime?)x.expireat);
                 Assert.Null(records["hash-1"]);
                 Assert.NotNull(records["hash-2"]);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void PersistSet_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -918,11 +918,10 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void PersistSet_ClearsExpirationTime_OnAGivenHash()
         {
-            string arrangeSql = @"insert into """ + GetSchemaName() +
-                                @""".""set"" (""key"", ""value"", ""expireat"", ""score"") values (@key, @value, @expireAt, 0.0)";
+            string arrangeSql = @"insert into set (key, value, expireat, score) values (@key, @value, @expireAt, 0.0)";
 
             UseConnection((provider, connection) =>
             {
@@ -937,14 +936,14 @@ returning ""id""";
                 Commit(provider, x => x.PersistSet("set-1"));
 
                 // Assert
-                var records = connection.Query(@"select * from """ + GetSchemaName() + @""".""set""")
+                var records = connection.Query(@"select * from set")
                     .ToDictionary(x => (string)x.key, x => (DateTime?)x.expireat);
                 Assert.Null(records["set-1"]);
                 Assert.NotNull(records["set-2"]);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void PersistList_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection((provider, connection) =>
@@ -956,11 +955,12 @@ returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void PersistList_ClearsExpirationTime_OnAGivenHash()
         {
-            string arrangeSql = @"insert into """ + GetSchemaName() +
-                                @""".""list"" (""key"", ""expireat"") values (@key, @expireAt)";
+            const string arrangeSql = @"
+insert into list (key, expireat) 
+values (@key, @expireAt)";
 
             UseConnection((provider, connection) =>
             {
@@ -975,7 +975,7 @@ returning ""id""";
                 Commit(provider, x => x.PersistList("list-1"));
 
                 // Assert
-                var records = connection.Query(@"select * from """ + GetSchemaName() + @""".""list""")
+                var records = connection.Query(@"select * from list")
                     .ToDictionary(x => (string)x.key, x => (DateTime?)x.expireat);
                 Assert.Null(records["list-1"]);
                 Assert.NotNull(records["list-2"]);
@@ -984,7 +984,7 @@ returning ""id""";
 
         private void UseConnection(Action<IConnectionProvider, NpgsqlConnection> action)
         {
-            var provider = ConnectionUtils.GetConnectionProvider();
+            var provider = ConnectionProvider;
             using (var connection = provider.AcquireConnection())
             {
                 action(provider, connection.Connection);
@@ -998,11 +998,6 @@ returning ""id""";
                 action(transaction);
                 transaction.Commit();
             }
-        }
-
-        private static string GetSchemaName()
-        {
-            return ConnectionUtils.GetSchemaName();
         }
     }
 }

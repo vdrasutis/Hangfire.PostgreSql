@@ -22,12 +22,17 @@ namespace Hangfire.PostgreSql.Storage
             };
 
             const string query = @"
-insert into server (id, data, lastheartbeat)
-values (@id, @data, now() at time zone 'UTC')
+insert into server (id, data, lastheartbeat, lockacquirerid)
+values (@id, @data, now() at time zone 'UTC', @acquirerId)
 on conflict (id)
-do update set data = @data, lastheartbeat = now() at time zone 'UTC'
+do update set data = @data, lastheartbeat = now() at time zone 'UTC', lockacquirerid = @acquirerId
 ";
-            var parameters = new { id = serverId, data = SerializationHelper.Serialize(data) };
+            var parameters = new
+            {
+                id = serverId,
+                data = SerializationHelper.Serialize(data),
+                acquirerId = _lockService.AcquirerId
+            };
             _connectionProvider.Execute(query, parameters);
         }
 

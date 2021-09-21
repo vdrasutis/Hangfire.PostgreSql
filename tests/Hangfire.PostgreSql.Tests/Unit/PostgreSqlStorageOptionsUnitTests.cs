@@ -1,9 +1,9 @@
 ﻿using System;
 using Xunit;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Unit
 {
-    public class PostgreSqlStorageOptionsFacts
+    public class PostgreSqlStorageOptionsUnitTests
     {
         [Fact]
         public void Ctor_SetsTheDefaultOptions()

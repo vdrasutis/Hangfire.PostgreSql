@@ -1,26 +1,22 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
-using Hangfire.PostgreSql.Tests.Utils;
+using Hangfire.PostgreSql.Tests.Setup;
 using Hangfire.Server;
 using Hangfire.States;
 using Hangfire.Storage;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Integration
 {
-    public class MonitoringApiFacts
+    public class MonitoringApiIntegrationTests : StorageContextBasedTests<MonitoringApiIntegrationTests>
     {
         private readonly IMonitoringApi _monitoringApi;
         private readonly PostgreSqlStorage _storage;
 
-        public MonitoringApiFacts()
-        {
-            _storage = new PostgreSqlStorage(ConnectionUtils.GetConnectionString());
-            _monitoringApi = _storage.GetMonitoringApi();
-        }
-
-        [Fact, CleanDatabase]
+        [Fact]
         public void ScheduledCount_ReturnsActualValue()
         {
             // Arrange
@@ -40,7 +36,7 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(2, scheduledCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void ScheduledJobs_ReturnsActualJobsList()
         {
             // Arrange
@@ -60,15 +56,15 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(2, scheduledJobs.Count);
             Assert.All(scheduledJobs, x =>
             {
-
-                Assert.NotNull(x.Key);
-                Assert.True(x.Value.InScheduledState);
-                Assert.NotNull(x.Value.ScheduledAt);
-                Assert.NotNull(x.Value.Job);
+                var (key, value) = x;
+                Assert.NotNull(key);
+                Assert.True(value.InScheduledState);
+                Assert.NotNull(value.ScheduledAt);
+                Assert.NotNull(value.Job);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void EnqueuedCount_ReturnsActualValue()
         {
             // Arrange
@@ -84,8 +80,7 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(3, enqueuedCount);
         }
 
-
-        [Fact, CleanDatabase]
+        [Fact]
         public void EnqueuedJobs_ReturnsActualJobsList()
         {
             // Arrange
@@ -102,15 +97,16 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(3, enqueuedJobs.Count);
             Assert.All(enqueuedJobs, x =>
             {
-                Assert.NotNull(x.Key);
-                Assert.True(x.Value.InEnqueuedState);
-                Assert.NotNull(x.Value.EnqueuedAt);
-                Assert.NotNull(x.Value.State);
-                Assert.NotNull(x.Value.Job);
+                var (key, value) = x;
+                Assert.NotNull(key);
+                Assert.True(value.InEnqueuedState);
+                Assert.NotNull(value.EnqueuedAt);
+                Assert.NotNull(value.State);
+                Assert.NotNull(value.Job);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void FetchedCount_ReturnsActualValue()
         {
             // Arrange
@@ -118,7 +114,7 @@ namespace Hangfire.PostgreSql.Tests
             backgroundJobClient.Enqueue(() => Worker.DoWork("hello"));
             backgroundJobClient.Enqueue(() => Worker.DoWork("hello-2"));
             backgroundJobClient.Enqueue(() => Worker.DoWork("hello-3"));
-            var fetched = _storage.GetConnection().FetchNextJob(new[] { "default" }, CancellationToken.None);
+            var _ = _storage.GetConnection().FetchNextJob(new[] { "default" }, CancellationToken.None);
 
             // Act
             var fetchedCount = _monitoringApi.FetchedCount("default");
@@ -127,7 +123,7 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(1, fetchedCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Queues_ReturnsActualQueues()
         {
             // Arrange
@@ -137,24 +133,22 @@ namespace Hangfire.PostgreSql.Tests
             backgroundJobClient.Create(() => Worker.DoWork("hello-3"), new EnqueuedState("test2"));
             backgroundJobClient.Create(() => Worker.DoWork("hello-4"), new EnqueuedState("default"));
 
-            using (var server = new BackgroundJobServer(_storage))
-            {
-                // Act
-                Thread.Sleep(5000); // -- wait till server complete boot
+            using var server = new BackgroundJobServer(_storage);
+            // Act
+            Thread.Sleep(5000); // -- wait till server completes boot
 
-                var queues = _monitoringApi
-                    .Queues()
-                    .Select(x => x.Name)
-                    .ToArray();
+            var queues = _monitoringApi
+                .Queues()
+                .Select(x => x.Name)
+                .ToArray();
 
-                // Assert
-                Assert.Contains("default", queues);
-                Assert.Contains("test1", queues);
-                Assert.Contains("test2", queues);
-            }
+            // Assert
+            Assert.Contains("default", queues);
+            Assert.Contains("test1", queues);
+            Assert.Contains("test2", queues);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void JobDetails_ReturnsJobDetails()
         {
             // Arrange
@@ -171,7 +165,7 @@ namespace Hangfire.PostgreSql.Tests
             Assert.NotEmpty(details.Properties);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetTimelineStats_ReturnsCounters()
         {
             // Arrange
@@ -211,7 +205,7 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(2, failedByDatesCount.First().Value);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Servers_ReturnsActualServers()
         {
             // Arrange
@@ -233,7 +227,7 @@ namespace Hangfire.PostgreSql.Tests
             Assert.Equal(workerCount, server.WorkersCount);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetStatistics_ReturnsStatistics()
         {
             // Arrange
@@ -254,17 +248,27 @@ namespace Hangfire.PostgreSql.Tests
             var statistics = _monitoringApi.GetStatistics();
 
             // Assert
-            Assert.Equal(1, statistics.Servers);
-            Assert.Equal(3, statistics.Enqueued);
-            Assert.Equal(1, statistics.Queues);
+            Assert.NotEqual(0, statistics.Servers);
+            Assert.NotEqual(0, statistics.Enqueued);
+            Assert.NotEqual(0, statistics.Queues);
         }
 
+        [SuppressMessage("ReSharper", "UnusedParameter.Global")]
+        [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
         public static class Worker
         {
             public static void DoWork(string argument) { }
 
             [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Fail)]
             public static void Fail(string argument) => throw new Exception("TEST OK!");
+        }
+
+        public MonitoringApiIntegrationTests(StorageContext<MonitoringApiIntegrationTests> storageContext, ITestOutputHelper testOutputHelper) : base(
+            storageContext,
+            testOutputHelper)
+        {
+            _storage = Storage;
+            _monitoringApi = Storage.GetMonitoringApi();
         }
     }
 }

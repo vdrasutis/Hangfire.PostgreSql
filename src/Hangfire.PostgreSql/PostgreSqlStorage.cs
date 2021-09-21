@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Hangfire.Annotations;
 using Hangfire.Logging;
 using Hangfire.PostgreSql.Connectivity;
+using Hangfire.PostgreSql.Locking;
 using Hangfire.PostgreSql.Maintenance;
 using Hangfire.PostgreSql.Queueing;
 using Hangfire.PostgreSql.Storage;
@@ -19,6 +20,7 @@ namespace Hangfire.PostgreSql
     {
         private readonly PostgreSqlStorageOptions _options;
         private readonly IConnectionProvider _connectionProvider;
+        private readonly LockService _lockService;
         private readonly string _storageInfo;
         private readonly StorageConnection _storageConnection;
         private readonly MonitoringApi _monitoringApi;
@@ -31,9 +33,7 @@ namespace Hangfire.PostgreSql
         /// <exception cref="ArgumentNullException"><paramref name="connectionString"/> is null.</exception>
         /// <exception cref="ArgumentException"><paramref name="connectionString"/> is not valid PostgreSql connection string </exception>
         public PostgreSqlStorage(string connectionString)
-            : this(connectionString, new PostgreSqlStorageOptions())
-        {
-        }
+            : this(connectionString, new PostgreSqlStorageOptions()) { }
 
         /// <summary>
         /// Initializes PostgreSqlStorage with the provided connection string and the provided PostgreSqlStorageOptions.
@@ -44,10 +44,7 @@ namespace Hangfire.PostgreSql
         /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
         /// <exception cref="ArgumentException"><paramref name="connectionString"/> is not valid PostgreSql connection string.</exception>
         public PostgreSqlStorage(string connectionString, PostgreSqlStorageOptions options)
-            : this(new DefaultConnectionBuilder(connectionString), options)
-        {
-
-        }
+            : this(new DefaultConnectionBuilder(connectionString), options) { }
 
         /// <summary>
         /// Initializes PostgreSqlStorage with the provided connection builder and default PostgreSqlStorageOptions.
@@ -56,9 +53,7 @@ namespace Hangfire.PostgreSql
         /// <exception cref="ArgumentNullException"><paramref name="connectionBuilder"/> is null.</exception>
         /// <exception cref="ArgumentException"><paramref name="connectionBuilder"/> is not valid PostgreSql connection string </exception>
         public PostgreSqlStorage(IConnectionBuilder connectionBuilder)
-            : this(connectionBuilder, new PostgreSqlStorageOptions())
-        {
-        }
+            : this(connectionBuilder, new PostgreSqlStorageOptions()) { }
 
         /// <summary>
         /// Initializes PostgreSqlStorage with the provided connection builder and the provided PostgreSqlStorageOptions.
@@ -78,23 +73,21 @@ namespace Hangfire.PostgreSql
 
             _connectionProvider = CreateConnectionProvider(connectionBuilder);
 
+            _lockService = new LockService(_connectionProvider, _options.DistributedLockTimeout);
+
             var queue = new JobQueue(_connectionProvider, _options);
             _queueProvider = new PollingJobQueueProvider(_connectionProvider, TimeSpan.FromMinutes(1));
-            _storageConnection = new StorageConnection(_connectionProvider, queue, _options);
+            _storageConnection = new StorageConnection(_connectionProvider, _lockService, queue, _options);
             _monitoringApi = new MonitoringApi(_connectionProvider, _queueProvider);
 
             var builder = connectionBuilder.ConnectionStringBuilder;
-            _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {builder.SearchPath}, Pool: {_connectionProvider.GetType().Name}";
+            _storageInfo = $"PostgreSQL Server: Host: {builder.Host}, DB: {builder.Database}, Schema: {builder.SearchPath}";
 
             PrepareSchemaIfNecessary(builder.SearchPath);
         }
 
         private static IConnectionProvider CreateConnectionProvider(IConnectionBuilder connectionBuilder)
-        {
-            return connectionBuilder.ConnectionStringBuilder.Pooling
-                ? new NpgsqlConnectionProvider(connectionBuilder)
-                : (IConnectionProvider)new DefaultConnectionProvider(connectionBuilder);
-        }
+            => new NpgsqlConnectionProvider(connectionBuilder);
 
         private void PrepareSchemaIfNecessary(string schemaName)
         {
@@ -105,6 +98,8 @@ namespace Hangfire.PostgreSql
         }
 
         internal IConnectionProvider ConnectionProvider => _connectionProvider;
+
+        internal ILockService LockService => _lockService;
 
         /// <inheritdoc/>
         public override IMonitoringApi GetMonitoringApi() => _monitoringApi;
@@ -119,9 +114,9 @@ namespace Hangfire.PostgreSql
 #pragma warning restore 618
             {
                 _queueProvider,
+                _lockService,
                 new ExpirationManager(_connectionProvider),
-                new ExpiredLocksManager(_connectionProvider, _options.DistributedLockTimeout),
-                new CountersAggregationManager(_connectionProvider)
+                new CountersAggregationManager(_connectionProvider, _lockService)
             };
 
         /// <inheritdoc/>
@@ -134,7 +129,7 @@ namespace Hangfire.PostgreSql
             logger.InfoFormat("  Invisibility timeout: {0}.", _options.InvisibilityTimeout);
             logger.InfoFormat("  Distributed lock timeout: {0}.", _options.DistributedLockTimeout);
         }
-
+        
         /// <inheritdoc/>
         public override string ToString() => _storageInfo;
 

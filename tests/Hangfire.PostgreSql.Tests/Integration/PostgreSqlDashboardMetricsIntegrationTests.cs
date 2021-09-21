@@ -1,24 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
-using Hangfire.Annotations;
 using Hangfire.Dashboard;
-using Hangfire.PostgreSql.Tests.Utils;
+using Hangfire.PostgreSql.Tests.Setup;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Integration
 {
-    public class PostgreSqlDashboardMetricsFacts
+    public class PostgreSqlDashboardMetricsIntegrationTests : StorageContextBasedTests<PostgreSqlDashboardMetricsIntegrationTests>
     {
         [Theory]
         [MemberData(nameof(GetMetrics))]
         public void DashboardMetric_Returns_Value(DashboardMetric dashboardMetric)
         {
-            var page = new TestPage();
+            var page = new TestPage(Storage);
 
             var metric = dashboardMetric.Func(page);
-
+            
             Assert.NotEqual("???", metric.Value);
         }
 
@@ -34,16 +33,25 @@ namespace Hangfire.PostgreSql.Tests
             yield return new object[] { PostgreSqlDashboardMetrics.PostgreSqlServerVersion };
         }
 
+        public PostgreSqlDashboardMetricsIntegrationTests(
+            StorageContext<PostgreSqlDashboardMetricsIntegrationTests> storageContext,
+            ITestOutputHelper testOutputHelper)
+            : base(storageContext, testOutputHelper) { }
+
         private class TestPage : RazorPage
         {
-            public TestPage()
+            public TestPage(PostgreSqlStorage postgreSqlStorage)
             {
-                var connectionString = ConnectionUtils.GetConnectionString();
-                var storage = new PostgreSqlStorage(connectionString, new PostgreSqlStorageOptions { PrepareSchemaIfNecessary = false });
+                var methods = GetType()
+                    .GetMethods(BindingFlags.Instance | BindingFlags.NonPublic);
+                
+                var method = methods
+                    .Single(mi =>
+                        mi.Name == nameof(Assign) &&
+                        mi.GetParameters().Length == 1 &&
+                        mi.GetParameters()[0].ParameterType == typeof(DashboardContext));
 
-                var method = GetType().GetMethod(nameof(TestPage.Assign), BindingFlags.NonPublic | BindingFlags.Instance);
-
-                var context = new TestContext(storage, new DashboardOptions());
+                var context = new TestContext(postgreSqlStorage, new DashboardOptions());
                 method.Invoke(this, new object[] { context });
             }
 
@@ -52,11 +60,8 @@ namespace Hangfire.PostgreSql.Tests
 
         private class TestContext : DashboardContext
         {
-            public TestContext([NotNull] JobStorage storage, [NotNull] DashboardOptions options)
-                : base(storage, options)
-            {
-
-            }
+            public TestContext(JobStorage storage, DashboardOptions options)
+                : base(storage, options) { }
         }
     }
 }

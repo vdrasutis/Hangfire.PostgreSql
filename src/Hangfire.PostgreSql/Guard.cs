@@ -23,7 +23,7 @@ namespace Hangfire.PostgreSql
 
         [ContractAnnotation("condition:true => halt")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ThrowIf([NotNull] bool condition, [NotNull] string message)
+        public static void ThrowIf(bool condition, [NotNull] string message)
         {
             if (condition)
                 throw new ArgumentException(message);
@@ -34,7 +34,7 @@ namespace Hangfire.PostgreSql
         public static void ThrowIfNullOrEmpty([NotNull] string argument, [NotNull] string argumentName)
         {
             if (string.IsNullOrWhiteSpace(argument))
-                throw new ArgumentNullException(argumentName);
+                throw new ArgumentException("Parameter must be non-empty string", argumentName);
         }
 
         [ContractAnnotation("collection:null => halt")]

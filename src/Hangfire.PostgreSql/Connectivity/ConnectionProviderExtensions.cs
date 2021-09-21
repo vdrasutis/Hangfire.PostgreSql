@@ -14,15 +14,13 @@ namespace Hangfire.PostgreSql.Connectivity
             int? commandTimeout = null,
             CommandType? commandType = null)
         {
-            using (var connectionHolder = connectionProvider.AcquireConnection())
-            {
-                return connectionHolder.Connection.Execute(
-                    sql,
-                    param,
-                    transaction,
-                    commandTimeout,
-                    commandType);
-            }
+            using var connectionHolder = connectionProvider.AcquireConnection();
+            return connectionHolder.Connection.Execute(
+                sql,
+                param,
+                transaction,
+                commandTimeout,
+                commandType);
         }
 
         [CanBeNull]
@@ -33,15 +31,13 @@ namespace Hangfire.PostgreSql.Connectivity
             int? commandTimeout = null,
             CommandType? commandType = null)
         {
-            using (var connectionHolder = connectionProvider.AcquireConnection())
-            {
-                return connectionHolder.Fetch<T>(
-                    sql,
-                    param,
-                    transaction,
-                    commandTimeout,
-                    commandType);
-            }
+            using var connectionHolder = connectionProvider.AcquireConnection();
+            return connectionHolder.Fetch<T>(
+                sql,
+                param,
+                transaction,
+                commandTimeout,
+                commandType);
         }
 
         public static T FetchScalar<T>(this IConnectionProvider connectionProvider,
@@ -52,15 +48,13 @@ namespace Hangfire.PostgreSql.Connectivity
             CommandType? commandType = null)
             where T : struct
         {
-            using (var connectionHolder = connectionProvider.AcquireConnection())
-            {
-                return connectionHolder.FetchScalar<T>(
-                    sql,
-                    param,
-                    transaction,
-                    commandTimeout,
-                    commandType);
-            }
+            using var connectionHolder = connectionProvider.AcquireConnection();
+            return connectionHolder.FetchScalar<T>(
+                sql,
+                param,
+                transaction,
+                commandTimeout,
+                commandType);
         }
 
         [NotNull]
@@ -71,15 +65,13 @@ namespace Hangfire.PostgreSql.Connectivity
             int? commandTimeout = null,
             CommandType? commandType = null)
         {
-            using (var connectionHolder = connectionProvider.AcquireConnection())
-            {
-                return connectionHolder.FetchList<T>(
-                    sql,
-                    param,
-                    transaction,
-                    commandTimeout,
-                    commandType);
-            }
+            using var connectionHolder = connectionProvider.AcquireConnection();
+            return connectionHolder.FetchList<T>(
+                sql,
+                param,
+                transaction,
+                commandTimeout,
+                commandType);
         }
     }
 }

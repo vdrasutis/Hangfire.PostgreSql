@@ -1,81 +1,87 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Dapper;
 using Hangfire.Common;
 using Hangfire.PostgreSql.Connectivity;
+using Hangfire.PostgreSql.Locking;
 using Hangfire.PostgreSql.Queueing;
 using Hangfire.PostgreSql.Storage;
-using Hangfire.PostgreSql.Tests.Utils;
+using Hangfire.PostgreSql.Tests.Setup;
 using Hangfire.Server;
 using Hangfire.Storage;
 using Moq;
 using Npgsql;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace Hangfire.PostgreSql.Tests
+namespace Hangfire.PostgreSql.Tests.Integration
 {
-    public class StorageConnectionFacts
+    public class StorageConnectionIntegrationTests : StorageContextBasedTests<StorageConnectionIntegrationTests>
     {
         private readonly PostgreSqlStorageOptions _options;
         private readonly IJobQueue _queue;
         private readonly IConnectionProvider _connectionProvider;
+        private readonly ILockService _lockService;
         private readonly StorageConnection _storageConnection;
 
-        public StorageConnectionFacts()
+        public StorageConnectionIntegrationTests(StorageContext<StorageConnectionIntegrationTests> storageContext, ITestOutputHelper testOutputHelper)
+            : base(storageContext, testOutputHelper)
         {
-            _connectionProvider = ConnectionUtils.GetConnectionProvider();
             _options = new PostgreSqlStorageOptions();
-            _queue = new JobQueue(_connectionProvider, _options);
-            _storageConnection = new StorageConnection(_connectionProvider, _queue, _options);
+            _queue = new JobQueue(ConnectionProvider, _options);
+            _connectionProvider = ConnectionProvider;
+            _lockService = LockService;
+            _storageConnection = new StorageConnection(_connectionProvider, _lockService, _queue, _options);
         }
 
         [Fact]
         public void Ctor_ThrowsAnException_WhenConnectionIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new StorageConnection(null, _queue, _options));
+                () => new StorageConnection(null, _lockService, _queue, _options));
 
             Assert.Equal("connectionProvider", exception.ParamName);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Ctor_ThrowsAnException_WhenQueueIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new StorageConnection(ConnectionUtils.GetConnectionProvider(), null, _options));
+                () => new StorageConnection(ConnectionProvider, _lockService, null, _options));
 
             Assert.Equal("queue", exception.ParamName);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Ctor_ThrowsAnException_WhenOptionsIsNull()
         {
             var exception = Assert.Throws<ArgumentNullException>(
-                () => new StorageConnection(ConnectionUtils.GetConnectionProvider(), _queue, null));
+                () => new StorageConnection(ConnectionProvider, _lockService, _queue, null));
 
             Assert.Equal("options", exception.ParamName);
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Dispose_DoesNotDisposeTheConnection()
         {
-            var sqlConnection = ConnectionUtils.GetConnectionProvider();
-            var connection = new StorageConnection(sqlConnection, _queue, _options);
+            var sqlConnection = ConnectionProvider;
+            var connection = new StorageConnection(sqlConnection, _lockService, _queue, _options);
 
             connection.Dispose();
 
             // Assert.Equal(sqlConnection.); TODO
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void FetchNextJob_DelegatesItsExecution_ToTheQueue()
         {
             // Arrange
             var queue = new Mock<IJobQueue>();
-            var storageConnection = new StorageConnection(_connectionProvider, queue.Object, _options);
+            var storageConnection = new StorageConnection(_connectionProvider, _lockService, queue.Object, _options);
             var token = new CancellationToken();
             var queues = new[] { "default" };
 
@@ -86,7 +92,7 @@ namespace Hangfire.PostgreSql.Tests
             queue.Verify(x => x.Dequeue(queues, token));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void CreateWriteTransaction_ReturnsNonNullInstance()
         {
             using (var transaction = _storageConnection.CreateWriteTransaction())
@@ -95,7 +101,7 @@ namespace Hangfire.PostgreSql.Tests
             }
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AcquireLock_ReturnsNonNullInstance()
         {
             UseConnection(connection =>
@@ -105,7 +111,7 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void CreateExpiredJob_ThrowsAnException_WhenJobIsNull()
         {
             UseConnection(connection =>
@@ -121,14 +127,14 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void CreateExpiredJob_ThrowsAnException_WhenParametersCollectionIsNull()
         {
             UseConnection(connection =>
             {
                 var exception = Assert.Throws<ArgumentNullException>(
                     () => connection.CreateExpiredJob(
-                        Common.Job.FromExpression(() => Worker.DoWork("hello")),
+                        Job.FromExpression(() => Worker.DoWork("hello")),
                         null,
                         DateTime.UtcNow,
                         TimeSpan.Zero));
@@ -137,14 +143,14 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void CreateExpiredJob_CreatesAJobInTheStorage_AndSetsItsParameters()
         {
             UseConnections((sql, connection) =>
             {
                 var createdAt = new DateTime(2012, 12, 12);
                 var jobId = connection.CreateExpiredJob(
-                    Common.Job.FromExpression(() => Worker.DoWork("Hello")),
+                    Job.FromExpression(() => Worker.DoWork("Hello")),
                     new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" } },
                     createdAt,
                     TimeSpan.FromDays(1));
@@ -152,7 +158,7 @@ namespace Hangfire.PostgreSql.Tests
                 Assert.NotNull(jobId);
                 Assert.NotEmpty(jobId);
 
-                var sqlJob = sql.Query(@"select * from """ + GetSchemaName() + @""".""job""").Single();
+                var sqlJob = sql.Query(@"select * from job").Single();
                 Assert.Equal(jobId, sqlJob.id.ToString());
                 Assert.Equal(createdAt, sqlJob.createdat);
                 Assert.Null((int?)sqlJob.stateid);
@@ -170,7 +176,7 @@ namespace Hangfire.PostgreSql.Tests
                 Assert.True(sqlJob.expireat < createdAt.AddDays(1).AddMinutes(1));
 
                 var parameters = sql.Query(
-                        @"select * from """ + GetSchemaName() + @""".""jobparameter"" where ""jobid"" = @id",
+                        @"select * from jobparameter where jobid = @id",
                         new { id = JobId.ToLong(jobId) })
                     .ToDictionary(x => (string)x.name, x => (string)x.value);
 
@@ -179,14 +185,14 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetJobData_ThrowsAnException_WhenJobIdIsNull()
         {
             UseConnection(connection => Assert.Throws<ArgumentNullException>(
                 () => connection.GetJobData(null)));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetJobData_ReturnsNull_WhenThereIsNoSuchJob()
         {
             UseConnection(connection =>
@@ -196,16 +202,16 @@ namespace Hangfire.PostgreSql.Tests
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetJobData_ReturnsResult_WhenJobExists()
         {
             string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""statename"", ""createdat"")
-values (@invocationData, @arguments, @stateName, now() at time zone 'utc') returning ""id""";
+insert into job (invocationdata, arguments, statename, createdat)
+values (@invocationData, @arguments, @stateName, now() at time zone 'utc') returning id";
 
             UseConnections((sql, connection) =>
             {
-                var job = Common.Job.FromExpression(() => Worker.DoWork("wrong"));
+                var job = Job.FromExpression(() => Worker.DoWork("wrong"));
 
                 var jobId = (int)sql.Query(
                     arrangeSql,
@@ -229,7 +235,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetStateData_ThrowsAnException_WhenJobIdIsNull()
         {
             UseConnection(
@@ -237,7 +243,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
                     () => connection.GetStateData(null)));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetStateData_ReturnsNull_IfThereIsNoSuchState()
         {
             UseConnection(connection =>
@@ -247,40 +253,42 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetStateData_ReturnsCorrectData()
         {
             string createJobSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""statename"", ""createdat"")
-    values ('', '', '', now() at time zone 'utc') returning ""id"";
+insert into job (invocationdata, arguments, statename, createdat)
+    values ('', '', '', now() at time zone 'utc') returning id;
             ";
 
             string createStateSql = @"
-insert into """ + GetSchemaName() + @""".""state"" (""jobid"", ""name"", ""createdat"")
+insert into state (jobid, name, createdat)
 values(@jobId, 'old-state', now() at time zone 'utc');
 
-insert into """ + GetSchemaName() + @""".""state"" (""jobid"", ""name"", ""reason"", ""data"", ""createdat"")
+insert into state (jobid, name, reason, data, createdat)
 values(@jobId, @name, @reason, @data, now() at time zone 'utc')
-returning ""id"";";
+returning id;";
 
             string updateJobStateSql = @"
-    update """ + GetSchemaName() + @""".""job""
-    set ""stateid"" = @stateId
-    where ""id"" = @jobId;
+    update job
+    set stateid = @stateId
+    where id = @jobId;
 ";
 
             UseConnections((sql, connection) =>
             {
                 var data = new Dictionary<string, string>
                 {
-                    {"Key", "Value"}
+                    { "Key", "Value" }
                 };
 
                 var jobId = (int)sql.Query(createJobSql).Single().id;
 
                 var stateId = (int)sql.Query(
-                    createStateSql,
-                    new { jobId = jobId, name = "Name", reason = "Reason", @data = SerializationHelper.Serialize(data) }).Single().id;
+                        createStateSql,
+                        new { jobId = jobId, name = "Name", reason = "Reason", @data = SerializationHelper.Serialize(data) })
+                    .Single()
+                    .id;
 
                 sql.Execute(updateJobStateSql, new { jobId = jobId, stateId = stateId });
 
@@ -293,12 +301,12 @@ returning ""id"";";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetJobData_ReturnsJobLoadException_IfThereWasADeserializationException()
         {
             string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""statename"", ""createdat"")
-values (@invocationData, @arguments, @stateName, now() at time zone 'utc') returning ""id""";
+insert into job (invocationdata, arguments, statename, createdat)
+values (@invocationData, @arguments, @stateName, now() at time zone 'utc') returning id";
 
             UseConnections((sql, connection) =>
             {
@@ -317,7 +325,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetParameter_ThrowsAnException_WhenJobIdIsNull()
         {
             UseConnection(connection =>
@@ -329,7 +337,7 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetParameter_ThrowsAnException_WhenNameIsNull()
         {
             UseConnection(connection =>
@@ -341,12 +349,12 @@ values (@invocationData, @arguments, @stateName, now() at time zone 'utc') retur
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetParameters_CreatesNewParameter_WhenParameterWithTheGivenNameDoesNotExists()
         {
             string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
-values ('', '', now() at time zone 'utc') returning ""id""";
+insert into job (invocationdata, arguments, createdat)
+values ('', '', now() at time zone 'utc') returning id";
 
             UseConnections((sql, connection) =>
             {
@@ -356,20 +364,19 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 connection.SetJobParameter(jobId, "Name", "Value");
 
                 var parameter = sql.Query(
-                    @"select * from """ + GetSchemaName() +
-                    @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
+                    @"select * from jobparameter where jobid = @id and name = @name",
                     new { id = JobId.ToLong(jobId), name = "Name" }).Single();
 
                 Assert.Equal("Value", parameter.value);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetParameter_UpdatesValue_WhenParameterWithTheGivenName_AlreadyExists()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
-values ('', '', now() at time zone 'utc') returning ""id""";
+            const string arrangeSql = @"
+insert into job (invocationdata, arguments, createdat)
+values ('', '', now() at time zone 'utc') returning id";
 
             UseConnections((sql, connection) =>
             {
@@ -380,20 +387,19 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 connection.SetJobParameter(jobId, "Name", "AnotherValue");
 
                 var parameter = sql.Query(
-                    @"select * from """ + GetSchemaName() +
-                    @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
+                    @"select * from jobparameter where jobid = @id and name = @name",
                     new { id = JobId.ToLong(jobId), name = "Name" }).Single();
 
                 Assert.Equal("AnotherValue", parameter.value);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetParameter_CanAcceptNulls_AsValues()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
-values ('', '', now() at time zone 'utc') returning ""id""";
+            const string arrangeSql = @"
+insert into job (invocationdata, arguments, createdat)
+values ('', '', now() at time zone 'utc') returning id";
 
             UseConnections((sql, connection) =>
             {
@@ -403,15 +409,14 @@ values ('', '', now() at time zone 'utc') returning ""id""";
                 connection.SetJobParameter(jobId, "Name", null);
 
                 var parameter = sql.Query(
-                    @"select * from """ + GetSchemaName() +
-                    @""".""jobparameter"" where ""jobid"" = @id and ""name"" = @name",
+                    @"select * from jobparameter where jobid = @id and name = @name",
                     new { id = JobId.ToLong(jobId), name = "Name" }).Single();
 
-                Assert.Equal((string)null, parameter.value);
+                Assert.Equal((string)null!, parameter.value);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetParameter_ThrowsAnException_WhenJobIdIsNull()
         {
             UseConnection(connection =>
@@ -423,7 +428,7 @@ values ('', '', now() at time zone 'utc') returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetParameter_ThrowsAnException_WhenNameIsNull()
         {
             UseConnection(connection =>
@@ -435,7 +440,7 @@ values ('', '', now() at time zone 'utc') returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetParameter_ReturnsNull_WhenParameterDoesNotExists()
         {
             UseConnection(connection =>
@@ -445,18 +450,18 @@ values ('', '', now() at time zone 'utc') returning ""id""";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetParameter_ReturnsParameterValue_WhenJobExists()
         {
-            string arrangeSql = @"
-with ""insertedjob"" as (
-    insert into """ + GetSchemaName() + @""".""job"" (""invocationdata"", ""arguments"", ""createdat"")
-    values ('', '', now() at time zone 'utc') returning ""id""
+            const string arrangeSql = @"
+with insertedjob as (
+    insert into job (invocationdata, arguments, createdat)
+    values ('', '', now() at time zone 'utc') returning id
 )
-insert into """ + GetSchemaName() + @""".""jobparameter"" (""jobid"", ""name"", ""value"")
-select ""insertedjob"".""id"", @name, @value
-from ""insertedjob""
-returning ""jobid"";
+insert into jobparameter (jobid, name, value)
+select insertedjob.id, @name, @value
+from insertedjob
+returning jobid;
 ";
             UseConnections((sql, connection) =>
             {
@@ -470,7 +475,7 @@ returning ""jobid"";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetFirstByLowestScoreFromSet_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
@@ -482,14 +487,14 @@ returning ""jobid"";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetFirstByLowestScoreFromSet_ThrowsAnException_ToScoreIsLowerThanFromScore()
         {
             UseConnection(connection => Assert.Throws<ArgumentException>(
                 () => connection.GetFirstByLowestScoreFromSet("key", 0, -1)));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetFirstByLowestScoreFromSet_ReturnsNull_WhenTheKeyDoesNotExist()
         {
             UseConnection(connection =>
@@ -501,11 +506,11 @@ returning ""jobid"";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetFirstByLowestScoreFromSet_ReturnsTheValueWithTheLowestScore()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""set"" (""key"", ""score"", ""value"")
+            const string arrangeSql = @"
+insert into set (key, score, value)
 values 
 ('key', 1.0, '1.0'),
 ('key', -1.0, '-1.0'),
@@ -522,7 +527,7 @@ values
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AnnounceServer_ThrowsAnException_WhenServerIdIsNull()
         {
             UseConnection(connection =>
@@ -534,7 +539,7 @@ values
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AnnounceServer_ThrowsAnException_WhenContextIsNull()
         {
             UseConnection(connection =>
@@ -546,7 +551,7 @@ values
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void AnnounceServer_CreatesOrUpdatesARecord()
         {
             UseConnections((sql, connection) =>
@@ -558,7 +563,7 @@ values
                 };
                 connection.AnnounceServer("server", context1);
 
-                var server = sql.Query(@"select * from """ + GetSchemaName() + @""".""server""").Single();
+                var server = sql.Query(@"select * from server").Single();
                 Assert.Equal("server", server.id);
                 Assert.True(((string)server.data).StartsWith(
                         "{\"WorkerCount\":4,\"Queues\":[\"critical\",\"default\"],\"StartedAt\":"),
@@ -571,24 +576,24 @@ values
                     WorkerCount = 1000
                 };
                 connection.AnnounceServer("server", context2);
-                var sameServer = sql.Query(@"select * from """ + GetSchemaName() + @""".""server""").Single();
+                var sameServer = sql.Query(@"select * from server").Single();
                 Assert.Equal("server", sameServer.id);
                 Assert.Contains("1000", sameServer.data);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveServer_ThrowsAnException_WhenServerIdIsNull()
         {
             UseConnection(connection => Assert.Throws<ArgumentNullException>(
                 () => connection.RemoveServer(null)));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveServer_RemovesAServerRecord()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""server"" (""id"", ""data"", ""lastheartbeat"")
+            const string arrangeSql = @"
+insert into server (id, data, lastheartbeat)
 values ('Server1', '', now() at time zone 'utc'),
 ('Server2', '', now() at time zone 'utc')";
 
@@ -598,23 +603,23 @@ values ('Server1', '', now() at time zone 'utc'),
 
                 connection.RemoveServer("Server1");
 
-                var server = sql.Query(@"select * from """ + GetSchemaName() + @""".""server""").Single();
+                var server = sql.Query(@"select * from server").Single();
                 Assert.NotEqual("Server1", server.Id, StringComparer.OrdinalIgnoreCase);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Heartbeat_ThrowsAnException_WhenServerIdIsNull()
         {
             UseConnection(connection => Assert.Throws<ArgumentNullException>(
                 () => connection.Heartbeat(null)));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void Heartbeat_UpdatesLastHeartbeat_OfTheServerWithGivenId()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""server"" (""id"", ""data"", ""lastheartbeat"")
+            const string arrangeSql = @"
+insert into server (id, data, lastheartbeat)
 values
 ('server1', '', '2012-12-12 12:12:12'),
 ('server2', '', '2012-12-12 12:12:12')";
@@ -625,7 +630,7 @@ values
 
                 connection.Heartbeat("server1");
 
-                var servers = sql.Query(@"select * from """ + GetSchemaName() + @""".""server""")
+                var servers = sql.Query(@"select * from server")
                     .ToDictionary(x => (string)x.id, x => (DateTime)x.lastheartbeat);
 
                 Assert.NotEqual(2012, servers["server1"].Year);
@@ -633,18 +638,18 @@ values
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveTimedOutServers_ThrowsAnException_WhenTimeOutIsNegative()
         {
             UseConnection(connection => Assert.Throws<ArgumentException>(
                 () => connection.RemoveTimedOutServers(TimeSpan.FromMinutes(-5))));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void RemoveTimedOutServers_DoItsWorkPerfectly()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""server"" (""id"", ""data"", ""lastheartbeat"")
+            const string arrangeSql = @"
+insert into server (id, data, lastheartbeat)
 values (@id, '', @heartbeat)";
 
             UseConnections((sql, connection) =>
@@ -653,25 +658,25 @@ values (@id, '', @heartbeat)";
                     arrangeSql,
                     new[]
                     {
-                        new {id = "server1", heartbeat = DateTime.UtcNow.AddDays(-1)},
-                        new {id = "server2", heartbeat = DateTime.UtcNow.AddHours(-12)}
+                        new { id = "server1", heartbeat = DateTime.UtcNow.AddDays(-1) },
+                        new { id = "server2", heartbeat = DateTime.UtcNow.AddHours(-12) }
                     });
 
                 connection.RemoveTimedOutServers(TimeSpan.FromHours(15));
 
-                var liveServer = sql.Query(@"select * from """ + GetSchemaName() + @""".""server""").Single();
+                var liveServer = sql.Query(@"select * from server").Single();
                 Assert.Equal("server2", liveServer.id);
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllItemsFromSet_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
                 Assert.Throws<ArgumentNullException>(() => connection.GetAllItemsFromSet(null)));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllItemsFromSet_ReturnsEmptyCollection_WhenKeyDoesNotExist()
         {
             UseConnection(connection =>
@@ -683,11 +688,11 @@ values (@id, '', @heartbeat)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllItemsFromSet_ReturnsAllItems()
         {
-            string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""set"" (""key"", ""score"", ""value"")
+            const string arrangeSql = @"
+insert into set (key, score, value)
 values (@key, 0.0, @value)";
 
             UseConnections((sql, connection) =>
@@ -695,9 +700,9 @@ values (@key, 0.0, @value)";
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "some-set", value = "1"},
-                    new {key = "some-set", value = "2"},
-                    new {key = "another-set", value = "3"}
+                    new { key = "some-set", value = "1" },
+                    new { key = "some-set", value = "2" },
+                    new { key = "another-set", value = "3" }
                 });
 
                 // Act
@@ -710,7 +715,7 @@ values (@key, 0.0, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetRangeInHash_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
@@ -722,7 +727,7 @@ values (@key, 0.0, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetRangeInHash_ThrowsAnException_WhenKeyValuePairsArgumentIsNull()
         {
             UseConnection(connection =>
@@ -734,19 +739,19 @@ values (@key, 0.0, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void SetRangeInHash_MergesAllRecords()
         {
             UseConnections((sql, connection) =>
             {
                 connection.SetRangeInHash("some-hash", new Dictionary<string, string>
                 {
-                    {"Key1", "Value1"},
-                    {"Key2", "Value2"}
+                    { "Key1", "Value1" },
+                    { "Key2", "Value2" }
                 });
 
                 var result = sql.Query(
-                        @"select * from """ + GetSchemaName() + @""".""hash"" where ""key"" = @key",
+                        @"select * from hash where key = @key",
                         new { key = "some-hash" })
                     .ToDictionary(x => (string)x.field, x => (string)x.value);
 
@@ -755,14 +760,14 @@ values (@key, 0.0, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllEntriesFromHash_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
                 Assert.Throws<ArgumentNullException>(() => connection.GetAllEntriesFromHash(null)));
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllEntriesFromHash_ReturnsNull_IfHashDoesNotExist()
         {
             UseConnection(connection =>
@@ -772,11 +777,11 @@ values (@key, 0.0, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllEntriesFromHash_ReturnsAllKeysAndTheirValues()
         {
             string arrangeSql = @"
-insert into """ + GetSchemaName() + @""".""hash"" (""key"", ""field"", ""value"")
+insert into hash (key, field, value)
 values (@key, @field, @value)";
 
             UseConnections((sql, connection) =>
@@ -784,9 +789,9 @@ values (@key, @field, @value)";
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "some-hash", field = "Key1", value = "Value1"},
-                    new {key = "some-hash", field = "Key2", value = "Value2"},
-                    new {key = "another-hash", field = "Key3", value = "Value3"}
+                    new { key = "some-hash", field = "Key1", value = "Value1" },
+                    new { key = "some-hash", field = "Key2", value = "Value2" },
+                    new { key = "another-hash", field = "Key3", value = "Value3" }
                 });
 
                 // Act
@@ -800,7 +805,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetSetCount_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
@@ -810,7 +815,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetSetCount_ReturnsZero_WhenSetDoesNotExist()
         {
             UseConnection(connection =>
@@ -820,19 +825,18 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetSetCount_ReturnsNumberOfElements_InASet()
         {
-            string arrangeSql =
-                $@"insert into ""{GetSchemaName()}"".set (key, value, score) values (@key, @value, 0.0)";
+            const string arrangeSql = @"insert into set (key, value, score) values (@key, @value, 0.0)";
 
             UseConnections((sql, connection) =>
             {
                 sql.Execute(arrangeSql, new List<dynamic>
                 {
-                    new {key = "set-1", value = "value-1"},
-                    new {key = "set-2", value = "value-1"},
-                    new {key = "set-1", value = "value-2"}
+                    new { key = "set-1", value = "value-1" },
+                    new { key = "set-2", value = "value-1" },
+                    new { key = "set-1", value = "value-2" }
                 });
 
                 var result = connection.GetSetCount("set-1");
@@ -841,7 +845,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllItemsFromList_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
@@ -851,7 +855,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllItemsFromList_ReturnsAnEmptyList_WhenListDoesNotExist()
         {
             UseConnection(connection =>
@@ -861,19 +865,19 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetAllItemsFromList_ReturnsAllItems_FromAGivenList()
         {
-            string arrangeSql = $@"insert into ""{GetSchemaName()}"".list (key, value) values (@key, @value)";
+            const string arrangeSql = @"insert into list (key, value) values (@key, @value)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "list-1", value = "1"},
-                    new {key = "list-2", value = "2"},
-                    new {key = "list-1", value = "3"}
+                    new { key = "list-1", value = "1" },
+                    new { key = "list-2", value = "2" },
+                    new { key = "list-1", value = "3" }
                 });
 
                 // Act
@@ -884,7 +888,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetCounter_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
@@ -894,7 +898,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetCounter_ReturnsZero_WhenKeyDoesNotExist()
         {
             UseConnection(connection =>
@@ -904,19 +908,19 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetCounter_ReturnsSumOfValues_InCounterTable()
         {
-            string arrangeSql = $@"insert into ""{GetSchemaName()}"".counter (key, value) values (@key, @value)";
+            const string arrangeSql = @"insert into counter (key, value) values (@key, @value)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "counter-1", value = 1},
-                    new {key = "counter-2", value = 1},
-                    new {key = "counter-1", value = 1}
+                    new { key = "counter-1", value = 1 },
+                    new { key = "counter-2", value = 1 },
+                    new { key = "counter-1", value = 1 }
                 });
 
                 // Act
@@ -927,17 +931,17 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetListCount_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
             {
                 Assert.Throws<ArgumentNullException>(
-                    () => connection.GetListCount(null));
+                    () => connection.GetListCount(null!));
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetListCount_ReturnsZero_WhenListDoesNotExist()
         {
             UseConnection(connection =>
@@ -947,19 +951,19 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetListCount_ReturnsTheNumberOfListElements()
         {
-            string arrangeSql = $@"insert into ""{GetSchemaName()}"".list (key) values (@key)";
+            const string arrangeSql = @"insert into list (key) values (@key)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "list-1"},
-                    new {key = "list-1"},
-                    new {key = "list-2"}
+                    new { key = "list-1" },
+                    new { key = "list-1" },
+                    new { key = "list-2" }
                 });
 
                 // Act
@@ -970,17 +974,17 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetListTtl_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
             {
                 Assert.Throws<ArgumentNullException>(
-                    () => connection.GetListTtl(null));
+                    () => connection.GetListTtl(null!));
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetListTtl_ReturnsNegativeValue_WhenListDoesNotExist()
         {
             UseConnection(connection =>
@@ -990,18 +994,18 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetListTtl_ReturnsExpirationTimeForList()
         {
-            string arrangeSql = $@"insert into ""{GetSchemaName()}"".list (key, expireat) values (@key, @expireAt)";
+            const string arrangeSql = @"insert into list (key, expireat) values (@key, @expireAt)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "list-1", expireAt = (DateTime?) DateTime.UtcNow.AddHours(1)},
-                    new {key = "list-2", expireAt = (DateTime?) null}
+                    new { key = "list-1", expireAt = (DateTime?)DateTime.UtcNow.AddHours(1) },
+                    new { key = "list-2", expireAt = (DateTime?)null }
                 });
 
                 // Act
@@ -1013,7 +1017,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetRangeFromList_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
@@ -1025,7 +1029,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetRangeFromList_ReturnsAnEmptyList_WhenListDoesNotExist()
         {
             UseConnection(connection =>
@@ -1035,21 +1039,21 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetRangeFromList_ReturnsAllEntries_WithinGivenBounds()
         {
-            string arrangeSql = $@"insert into ""{GetSchemaName()}"".list (key, value) values (@key, @value)";
+            const string arrangeSql = @"insert into list (key, value) values (@key, @value)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "list-1", value = "1"},
-                    new {key = "list-2", value = "2"},
-                    new {key = "list-1", value = "3"},
-                    new {key = "list-1", value = "4"},
-                    new {key = "list-1", value = "5"}
+                    new { key = "list-1", value = "1" },
+                    new { key = "list-2", value = "2" },
+                    new { key = "list-1", value = "3" },
+                    new { key = "list-1", value = "4" },
+                    new { key = "list-1", value = "5" }
                 });
 
                 // Act
@@ -1060,13 +1064,13 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetHashCount_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection => { Assert.Throws<ArgumentNullException>(() => connection.GetHashCount(null)); });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetHashCount_ReturnsZero_WhenKeyDoesNotExist()
         {
             UseConnection(connection =>
@@ -1076,19 +1080,19 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetHashCount_ReturnsNumber_OfHashFields()
         {
-            string arrangeSql = $@"insert into ""{GetSchemaName()}"".hash (key, field) values (@key, @field)";
+            const string arrangeSql = @"insert into hash (key, field) values (@key, @field)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "hash-1", field = "field-1"},
-                    new {key = "hash-1", field = "field-2"},
-                    new {key = "hash-2", field = "field-1"}
+                    new { key = "hash-1", field = "field-1" },
+                    new { key = "hash-1", field = "field-2" },
+                    new { key = "hash-2", field = "field-1" }
                 });
 
                 // Act
@@ -1099,7 +1103,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetHashTtl_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
@@ -1109,7 +1113,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetHashTtl_ReturnsNegativeValue_WhenHashDoesNotExist()
         {
             UseConnection(connection =>
@@ -1119,19 +1123,18 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetHashTtl_ReturnsExpirationTimeForHash()
         {
-            string arrangeSql =
-                $@"insert into ""{GetSchemaName()}"".hash (key, field, expireat) values (@key, @field, @expireAt)";
+            const string arrangeSql = @"insert into hash (key, field, expireat) values (@key, @field, @expireAt)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "hash-1", field = "field", expireAt = (DateTime?) DateTime.UtcNow.AddHours(1)},
-                    new {key = "hash-2", field = "field", expireAt = (DateTime?) null}
+                    new { key = "hash-1", field = "field", expireAt = (DateTime?)DateTime.UtcNow.AddHours(1) },
+                    new { key = "hash-2", field = "field", expireAt = (DateTime?)null }
                 });
 
                 // Act
@@ -1143,31 +1146,27 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetRangeFromSet_ThrowsAnException_WhenKeyIsNull()
         {
-            UseConnection(connection =>
-            {
-                Assert.Throws<ArgumentNullException>(() => connection.GetRangeFromSet(null, 0, 1));
-            });
+            UseConnection(connection => { Assert.Throws<ArgumentNullException>(() => connection.GetRangeFromSet(null, 0, 1)); });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetRangeFromSet_ReturnsPagedElements()
         {
-            string arrangeSql =
-                $@"insert into ""{GetSchemaName()}"".set (key, value, score) values (@key, @value, 0.0)";
+            const string arrangeSql = @"insert into set (key, value, score) values (@key, @value, 0.0)";
 
             UseConnections((sql, connection) =>
             {
                 sql.Execute(arrangeSql, new List<dynamic>
                 {
-                    new {key = "set-1", value = "1"},
-                    new {key = "set-1", value = "2"},
-                    new {key = "set-1", value = "3"},
-                    new {key = "set-1", value = "4"},
-                    new {key = "set-2", value = "4"},
-                    new {key = "set-1", value = "5"}
+                    new { key = "set-1", value = "1" },
+                    new { key = "set-1", value = "2" },
+                    new { key = "set-1", value = "3" },
+                    new { key = "set-1", value = "4" },
+                    new { key = "set-2", value = "4" },
+                    new { key = "set-1", value = "5" }
                 });
 
                 var result = connection.GetRangeFromSet("set-1", 2, 3);
@@ -1176,13 +1175,13 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetSetTtl_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection => { Assert.Throws<ArgumentNullException>(() => connection.GetSetTtl(null)); });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetSetTtl_ReturnsNegativeValue_WhenSetDoesNotExist()
         {
             UseConnection(connection =>
@@ -1192,21 +1191,18 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetSetTtl_ReturnsExpirationTime_OfAGivenSet()
         {
-            string arrangeSql =
-                $@"insert into ""{
-                        GetSchemaName()
-                    }"".set (key, value, expireat, score) values (@key, @value, @expireAt, 0.0)";
+            const string arrangeSql = @"insert into set (key, value, expireat, score) values (@key, @value, @expireAt, 0.0)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "set-1", value = "1", expireAt = (DateTime?) DateTime.UtcNow.AddMinutes(60)},
-                    new {key = "set-2", value = "2", expireAt = (DateTime?) null}
+                    new { key = "set-1", value = "1", expireAt = (DateTime?)DateTime.UtcNow.AddMinutes(60) },
+                    new { key = "set-2", value = "2", expireAt = (DateTime?)null }
                 });
 
                 // Act
@@ -1218,7 +1214,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetValueFromHash_ThrowsAnException_WhenKeyIsNull()
         {
             UseConnection(connection =>
@@ -1230,7 +1226,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetValueFromHash_ThrowsAnException_WhenNameIsNull()
         {
             UseConnection(connection =>
@@ -1242,7 +1238,7 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetValueFromHash_ReturnsNull_WhenHashDoesNotExist()
         {
             UseConnection(connection =>
@@ -1252,20 +1248,19 @@ values (@key, @field, @value)";
             });
         }
 
-        [Fact, CleanDatabase]
+        [Fact]
         public void GetValueFromHash_ReturnsValue_OfAGivenField()
         {
-            string arrangeSql =
-                $@"insert into ""{GetSchemaName()}"".hash (key, field, value) values (@key, @field, @value)";
+            const string arrangeSql = @"insert into hash (key, field, value) values (@key, @field, @value)";
 
             UseConnections((sql, connection) =>
             {
                 // Arrange
                 sql.Execute(arrangeSql, new[]
                 {
-                    new {key = "hash-1", field = "field-1", value = "1"},
-                    new {key = "hash-1", field = "field-2", value = "2"},
-                    new {key = "hash-2", field = "field-1", value = "3"}
+                    new { key = "hash-1", field = "field-1", value = "1" },
+                    new { key = "hash-1", field = "field-2", value = "2" },
+                    new { key = "hash-2", field = "field-1", value = "3" }
                 });
 
                 // Act
@@ -1278,37 +1273,27 @@ values (@key, @field, @value)";
 
         private void UseConnections(Action<NpgsqlConnection, StorageConnection> action)
         {
-            var provider = ConnectionUtils.GetConnectionProvider();
-            using (var connection = new StorageConnection(provider, _queue, _options))
-            {
-                using (var con = provider.AcquireConnection())
-                {
-                    action(con.Connection, connection);
-                }
-            }
+            var provider = ConnectionProvider;
+            using var connection = new StorageConnection(provider, _lockService, _queue, _options);
+            using var con = provider.AcquireConnection();
+            action(con.Connection, connection);
         }
 
         private void UseConnection(Action<StorageConnection> action)
         {
-            using (var connection = new StorageConnection(
-                ConnectionUtils.GetConnectionProvider(),
+            using var connection = new StorageConnection(
+                ConnectionProvider,
+                _lockService,
                 _queue,
-                _options))
-            {
-                action(connection);
-            }
+                _options);
+            action(connection);
         }
 
-        private static string GetSchemaName()
-        {
-            return ConnectionUtils.GetSchemaName();
-        }
-
+        [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
+        [SuppressMessage("ReSharper", "UnusedParameter.Global")]
         public static class Worker
         {
-            public static void DoWork(string argument)
-            {
-            }
+            public static void DoWork(string argument) { }
         }
     }
 }

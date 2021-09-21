@@ -27,15 +27,13 @@ namespace Hangfire.PostgreSql
 
         public override void Commit()
         {
-            using (var connectionHolder = _connectionProvider.AcquireConnection())
-            using (var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted))
+            using var connectionHolder = _connectionProvider.AcquireConnection();
+            using var transaction = connectionHolder.Connection.BeginTransaction(IsolationLevel.ReadCommitted);
+            foreach (var command in _commandQueue)
             {
-                foreach (var command in _commandQueue)
-                {
-                    command(connectionHolder.Connection, transaction);
-                }
-                transaction.Commit();
+                command(connectionHolder.Connection, transaction);
             }
+            transaction.Commit();
         }
 
         public override void ExpireJob(string jobId, TimeSpan expireIn)

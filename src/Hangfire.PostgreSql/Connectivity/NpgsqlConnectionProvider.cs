@@ -1,4 +1,6 @@
 ﻿
+using Dapper;
+
 namespace Hangfire.PostgreSql.Connectivity
 {
     internal sealed class NpgsqlConnectionProvider : IConnectionProvider

@@ -33,7 +33,7 @@ namespace Hangfire.PostgreSql
             using (var connectionHolder = _connectionProvider.AcquireConnection())
             {
                 var connection = connectionHolder.Connection;
-                var lockTaken = LockDatabase(connection);
+                var lockTaken = LockDatabase(connection, _schemaName);
                 if (!lockTaken) return;
 
                 TryCreateSchema(connection);
@@ -48,6 +48,7 @@ namespace Hangfire.PostgreSql
                     {
                         try
                         {
+                            connection.Execute($@"set search_path={_schemaName}");
                             connection.Execute(migration.Script, transaction: transaction);
                         }
                         catch (Exception e)
@@ -56,6 +57,7 @@ namespace Hangfire.PostgreSql
                             Log.ErrorException(errorMessage, e);
                             throw new ApplicationException(errorMessage, e);
                         }
+
                         lastMigration = migration;
                         Log.Info($"Installing Hangfire SQL migration #{migration.Version}");
                     }
@@ -68,22 +70,23 @@ namespace Hangfire.PostgreSql
                     transaction.Commit();
                 }
 
-                UnlockDatabase(connection);
+                UnlockDatabase(connection, _schemaName);
             }
 
             Log.Info("Hangfire SQL objects installed.");
         }
 
-        private static bool LockDatabase(NpgsqlConnection connection)
-            => connection.Query<bool>(@"select pg_try_advisory_lock(12345)").Single();
+        private bool LockDatabase(NpgsqlConnection connection, string lockId)
+            => connection.Query<bool>(@$"select pg_try_advisory_lock(hashtext('{lockId}'))").Single();
 
-        private static void UnlockDatabase(NpgsqlConnection connection)
-            => connection.Execute(@"select pg_advisory_unlock(12345)");
+        private void UnlockDatabase(NpgsqlConnection connection, string lockId)
+            => connection.Execute(@$"select pg_advisory_unlock(hashtext('{lockId}'))");
 
-        private static int GetInstalledVersion(NpgsqlConnection connection)
+        private int GetInstalledVersion(NpgsqlConnection connection)
         {
             try
             {
+                connection.Execute($@"set search_path={_schemaName}");
                 return connection.Query<int>(@"select version from schema").SingleOrDefault();
             }
             catch
@@ -94,16 +97,7 @@ namespace Hangfire.PostgreSql
 
         private void TryCreateSchema(NpgsqlConnection connection)
         {
-            try
-            {
-                connection.Execute($@"CREATE SCHEMA {_schemaName}");
-            }
-            catch
-            {
-                // Already created
-            }
-
-            connection.Execute($@"set search_path={_schemaName}");
+            connection.Execute($@"create schema if not exists {_schemaName}");
         }
 
         private static IEnumerable<MigrationInfo> GetMigrations()
@@ -134,7 +128,7 @@ namespace Hangfire.PostgreSql
             {
                 using (var stream = assembly.GetManifestResourceStream(resourceName))
                 {
-                    if (stream == null) return default(Option<string>);
+                    if (stream == null) return default;
 
                     using (var reader = new StreamReader(stream))
                     {
@@ -145,7 +139,7 @@ namespace Hangfire.PostgreSql
             }
             catch
             {
-                return default(Option<string>);
+                return default;
             }
         }
     }

@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
-using Dapper;
 using Hangfire.Common;
 using Hangfire.PostgreSql.Connectivity;
 using Hangfire.PostgreSql.Entities;
+using Hangfire.PostgreSql.Locking;
 using Hangfire.PostgreSql.Queueing;
 using Hangfire.Storage;
 
@@ -16,32 +15,32 @@ namespace Hangfire.PostgreSql.Storage
     internal sealed partial class StorageConnection : JobStorageConnection
     {
         private readonly IConnectionProvider _connectionProvider;
+        private readonly ILockService _lockService;
         private readonly IJobQueue _queue;
 
         public StorageConnection(
             IConnectionProvider connectionProvider,
+            ILockService lockService,
             IJobQueue queue,
             PostgreSqlStorageOptions options)
         {
             Guard.ThrowIfNull(connectionProvider, nameof(connectionProvider));
+            Guard.ThrowIfNull(lockService, nameof(lockService));
             Guard.ThrowIfNull(queue, nameof(queue));
             Guard.ThrowIfNull(options, nameof(options));
 
             _connectionProvider = connectionProvider;
+            _lockService = lockService;
             _queue = queue;
         }
 
-        public override IWriteOnlyTransaction CreateWriteTransaction()
-            => new WriteOnlyTransaction(_connectionProvider);
+        public override IWriteOnlyTransaction CreateWriteTransaction() => new WriteOnlyTransaction(_connectionProvider);
 
         public override IDisposable AcquireDistributedLock(string resource, TimeSpan timeout)
-            => new DistributedLock(resource, timeout, _connectionProvider);
+            => _lockService.AcquireLock(resource, timeout);
 
         public override IFetchedJob FetchNextJob(string[] queues, CancellationToken cancellationToken)
-        {
-            Guard.ThrowIfCollectionIsNullOrEmpty(queues, nameof(queues));
-            return _queue.Dequeue(queues, cancellationToken);
-        }
+            => _queue.Dequeue(queues, cancellationToken);
 
         public override string CreateExpiredJob(
             Job job,
@@ -87,6 +86,7 @@ values (@jobId, @name, @value);
 ";
                     connectionHolder.Execute(insertParameterSql, parametersArray, transaction);
                 }
+
                 transaction.Commit();
                 return JobId.ToString(jobId);
             }
