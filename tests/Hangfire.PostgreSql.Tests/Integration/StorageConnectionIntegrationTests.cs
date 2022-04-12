@@ -148,7 +148,7 @@ namespace Hangfire.PostgreSql.Tests.Integration
         {
             UseConnections((sql, connection) =>
             {
-                var createdAt = new DateTime(2012, 12, 12);
+                var createdAt = new DateTime(2012, 12, 12, 0, 0, 0, DateTimeKind.Utc);
                 var jobId = connection.CreateExpiredJob(
                     Job.FromExpression(() => Worker.DoWork("Hello")),
                     new Dictionary<string, string> { { "Key1", "Value1" }, { "Key2", "Value2" } },
