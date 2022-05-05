@@ -27,7 +27,7 @@ namespace Hangfire.PostgreSql.Tests.Web
                 var alloc = rnd.Next(100000, 10000000);
                 var x = new DummyStruct[alloc];
                 x[0].A = 1;
-                x[x.Length - 1].A = 2;
+                x[^1].A = 2;
                 if (w1.Elapsed > TimeSpan.FromSeconds(15))
                 {
                     break;
@@ -38,29 +38,29 @@ namespace Hangfire.PostgreSql.Tests.Web
         public static void CpuKill(int cpuUsage)
         {
             Parallel.For(0, 1, new ParallelOptions { MaxDegreeOfParallelism = 100 }, i =>
-              {
-                  var w1 = Stopwatch.StartNew();
-                  var watch = Stopwatch.StartNew();
-                  while (true)
-                  {
-                      if (watch.ElapsedMilliseconds > cpuUsage)
-                      {
-                          Thread.Sleep(100 - cpuUsage);
-                          watch.Reset();
-                          watch.Start();
-                      }
+            {
+                var w1 = Stopwatch.StartNew();
+                var watch = Stopwatch.StartNew();
+                while (true)
+                {
+                    if (watch.ElapsedMilliseconds > cpuUsage)
+                    {
+                        Thread.Sleep(100 - cpuUsage);
+                        watch.Reset();
+                        watch.Start();
+                    }
 
-                      if (w1.Elapsed > TimeSpan.FromSeconds(15))
-                      {
-                          break;
-                      }
-                  }
-              });
+                    if (w1.Elapsed > TimeSpan.FromSeconds(15))
+                    {
+                        break;
+                    }
+                }
+            });
         }
 
         public static void ContinuationTest()
         {
-            var jobA = BackgroundJob.Enqueue(() => ContinuationPartA(null));
+            var jobA = BackgroundJob.Enqueue(() => ContinuationPartA(null!));
             var jobB = BackgroundJob.ContinueJobWith(jobA,
                 () => ContinuationPartB(),
                 JobContinuationOptions.OnlyOnSucceededState);
